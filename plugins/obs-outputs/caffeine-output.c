@@ -110,9 +110,4 @@ struct obs_output_info caffeine_output_info = {
 	.stop      = caffeine_stop,
 	.raw_video = caffeine_raw_video,
 	.raw_audio = caffeine_raw_audio,
-
-	/* These are supposed to be optional for non-encoded streams but stream
-	   fails to start if they're omitted */
-	.encoded_video_codecs = "h264",
-	.encoded_audio_codecs = "opus",
 };
