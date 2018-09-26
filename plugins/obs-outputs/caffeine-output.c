@@ -54,7 +54,15 @@ static bool caffeine_start(void *data)
 	struct caffeine_output *stream = data;
 
 	info("caffeine_start");
-	/* TODO */
+
+	if (!obs_output_can_begin_data_capture(stream->output, 0))
+		return false;
+
+	/* TODO: do get the service, set up stream with broadcast name etc.
+	 * Most of this work should be on separate thread
+	 */
+
+	obs_output_begin_data_capture(stream->output, 0);
 
 	return true;
 }
@@ -66,7 +74,10 @@ static void caffeine_stop(void *data, uint64_t ts)
 	struct caffeine_output *stream = data;
 
 	info("caffeine_stop");
-	/* TODO */
+
+	/* TODO: teardown with service; do something with ts? */
+
+	obs_output_end_data_capture(stream->output);
 }
 
 static void caffeine_raw_video(void *data, struct video_data *frame)
@@ -91,7 +102,7 @@ static void caffeine_raw_audio(void *data, struct audio_data *frames)
 
 struct obs_output_info caffeine_output_info = {
 	.id        = "caffeine_output",
-	.flags     = OBS_OUTPUT_AV | OBS_OUTPUT_SERVICE,
+	.flags     = OBS_OUTPUT_AV,  /* TODO: OBS_OUTPUT_SERVICE for login info, etc*/
 	.get_name  = caffeine_get_name,
 	.create    = caffeine_create,
 	.destroy   = caffeine_destroy,
