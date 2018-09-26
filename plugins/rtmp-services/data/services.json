@@ -190,6 +190,21 @@
             }
         },
         {
+            "name": "Caffeine.tv",
+            "common": true,
+            "servers": [
+                {
+                    "name": "Auto",
+                    "url": "managed-by.caffeine.tv"
+                }
+            ],
+            "recommended": {
+                "keyint": 3,
+                "output": "caffeine_output",
+                "profile": "main"
+            }
+        },
+        {
             "name": "YouTube / YouTube Gaming",
             "common": true,
             "servers": [
