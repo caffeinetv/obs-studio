@@ -24,6 +24,38 @@ static const char *caffeine_get_name(void *data)
 	return obs_module_text("CaffeineOutput"); // TODO localize
 }
 
+/* Converts caffeine-rtc (webrtc) log levels to OBS levels. NONE or unrecognized
+ * values return 0 to indicate the message shouldn't be logged
+ *
+ * Note: webrtc uses INFO for debugging messages, not meant to be user-facing,
+ * so this will never return LOG_INFO
+ */
+static int caffeine_to_obs_log_level(enum caff_log_severity severity)
+{
+	switch (severity)
+	{
+	case CAFF_LOG_SENSITIVE:
+	case CAFF_LOG_VERBOSE:
+	case CAFF_LOG_INFO:
+		return LOG_DEBUG;
+	case CAFF_LOG_WARNING:
+		return LOG_WARNING;
+	case CAFF_LOG_ERROR:
+		return LOG_ERROR;
+	case CAFF_LOG_NONE:
+	default:
+		return 0;
+	}
+}
+
+/* Log sink for caffeine-rtc */
+static void caffeine_log(enum caff_log_severity severity, char const * message)
+{
+	int log_level = caffeine_to_obs_log_level(severity);
+	if (log_level)
+		blog(log_level, "[caffeine-rtc] %s", message);
+}
+
 static void *caffeine_create(obs_data_t *settings, obs_output_t *output)
 {
 	UNUSED_PARAMETER(settings);
@@ -33,8 +65,7 @@ static void *caffeine_create(obs_data_t *settings, obs_output_t *output)
 
 	info("caffeine_create");
 
-	info("TestStub: %d", (int)TestStub()); /* temp - make sure we can call into caffeine-rtc */
-	/* TODO */
+	caff_initialize(caffeine_log, CAFF_LOG_INFO);
 
 	return stream;
 }
@@ -85,8 +116,6 @@ static void caffeine_raw_video(void *data, struct video_data *frame)
 	UNUSED_PARAMETER(frame);
 
 	struct caffeine_output *stream = data;
-
-	info("caffeine_raw_video");
 	/* TODO */
 }
 
@@ -95,8 +124,6 @@ static void caffeine_raw_audio(void *data, struct audio_data *frames)
 	UNUSED_PARAMETER(frames);
 
 	struct caffeine_output *stream = data;
-
-	info("caffeine_raw_audio");
 	/* TODO */
 }
 
