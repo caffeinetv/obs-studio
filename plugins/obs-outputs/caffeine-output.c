@@ -141,6 +141,7 @@ static void caffeine_stop(void *data, uint64_t ts)
 	log_info("caffeine_stop");
 
 	/* TODO: teardown with service; do something with ts? */
+	caff_end_broadcast(stream->broadcast);
 
 	obs_output_end_data_capture(stream->output);
 }
