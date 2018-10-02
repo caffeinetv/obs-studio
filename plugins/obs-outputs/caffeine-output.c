@@ -7,21 +7,23 @@
 	blog(level, "[caffeine output: '%s'] " format, \
 			obs_output_get_name(stream->output), ##__VA_ARGS__)
 
-#define warn(format, ...)  do_log(LOG_WARNING, format, ##__VA_ARGS__)
-#define info(format, ...)  do_log(LOG_INFO, format, ##__VA_ARGS__)
+#define log_error(format, ...)  do_log(LOG_ERROR, format, ##__VA_ARGS__)
+#define log_warn(format, ...)  do_log(LOG_WARNING, format, ##__VA_ARGS__)
+#define log_info(format, ...)  do_log(LOG_INFO, format, ##__VA_ARGS__)
+#define log_debug(format, ...)  do_log(LOG_DEBUG, format, ##__VA_ARGS__)
 
 struct caffeine_output
 {
-	obs_output_t *output;
+	obs_output_t * output;
+	caff_interface_handle interface;
+	caff_broadcast_handle broadcast;
 };
 
 static const char *caffeine_get_name(void *data)
 {
 	UNUSED_PARAMETER(data);
 
-	blog(LOG_INFO, "caffeine_get_name");
-
-	return obs_module_text("CaffeineOutput"); // TODO localize
+	return obs_module_text("CaffeineOutput"); /* TODO localize */
 }
 
 /* Converts caffeine-rtc (webrtc) log levels to OBS levels. NONE or unrecognized
@@ -48,7 +50,15 @@ static int caffeine_to_obs_log_level(enum caff_log_severity severity)
 	}
 }
 
-/* Log sink for caffeine-rtc */
+static int caffeine_to_obs_error(enum caff_error error)
+{
+	switch (error)
+	{
+	default:
+		return OBS_OUTPUT_ERROR;
+	}
+}
+
 static void caffeine_log(enum caff_log_severity severity, char const * message)
 {
 	int log_level = caffeine_to_obs_log_level(severity);
@@ -63,9 +73,14 @@ static void *caffeine_create(obs_data_t *settings, obs_output_t *output)
 	struct caffeine_output *stream = bzalloc(sizeof(struct caffeine_output));
 	stream->output = output;
 
-	info("caffeine_create");
+	log_info("caffeine_create");
 
-	caff_initialize(caffeine_log, CAFF_LOG_INFO);
+	stream->interface = caff_initialize(caffeine_log, CAFF_LOG_INFO);
+	if (!stream->interface) {
+		log_error("Unable to initialize Caffeine interface");
+		bfree(stream);
+		return NULL;
+	}
 
 	return stream;
 }
@@ -73,18 +88,33 @@ static void *caffeine_create(obs_data_t *settings, obs_output_t *output)
 static void caffeine_destroy(void *data)
 {
 	struct caffeine_output *stream = data;
+	log_info("caffeine_destroy");
 
-	info("caffeine_destroy");
-	/* TODO */
+	caff_deinitialize(stream->interface);
 
 	bfree(data);
+}
+
+static void caffeine_broadcast_started(void *data)
+{
+	struct caffeine_output *stream = data;
+	log_info("caffeine_broadcast_started");
+
+	obs_output_begin_data_capture(stream->output, 0);
+}
+
+static void caffeine_broadcast_failed(void *data, enum caff_error error)
+{
+	struct caffeine_output *stream = data;
+	log_error("caffeine_broadcast_failed: %d", error);
+
+	obs_output_signal_stop(stream->output, caffeine_to_obs_error(error));
 }
 
 static bool caffeine_start(void *data)
 {
 	struct caffeine_output *stream = data;
-
-	info("caffeine_start");
+	log_info("caffeine_start");
 
 	if (!obs_output_can_begin_data_capture(stream->output, 0))
 		return false;
@@ -93,8 +123,13 @@ static bool caffeine_start(void *data)
 	 * Most of this work should be on separate thread
 	 */
 
-	obs_output_begin_data_capture(stream->output, 0);
+	caff_broadcast_handle broadcast = caff_start_broadcast(stream->interface,
+		stream, caffeine_broadcast_started, caffeine_broadcast_failed);
 
+	if (!broadcast)
+		return false;
+
+	stream->broadcast = broadcast;
 	return true;
 }
 
@@ -103,8 +138,7 @@ static void caffeine_stop(void *data, uint64_t ts)
 	UNUSED_PARAMETER(ts);
 
 	struct caffeine_output *stream = data;
-
-	info("caffeine_stop");
+	log_info("caffeine_stop");
 
 	/* TODO: teardown with service; do something with ts? */
 
@@ -116,6 +150,7 @@ static void caffeine_raw_video(void *data, struct video_data *frame)
 	UNUSED_PARAMETER(frame);
 
 	struct caffeine_output *stream = data;
+
 	/* TODO */
 }
 
@@ -124,6 +159,7 @@ static void caffeine_raw_audio(void *data, struct audio_data *frames)
 	UNUSED_PARAMETER(frames);
 
 	struct caffeine_output *stream = data;
+
 	/* TODO */
 }
 
