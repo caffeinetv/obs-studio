@@ -17,5 +17,5 @@
 	path = plugins/obs-outputs/ftl-sdk
 	url = https://github.com/Mixer/ftl-sdk.git
 [submodule "plugins/obs-outputs/caffeine-rtc"]
-	path = plugins/obs-outputs/caffeine-rtc
+	path = plugins/caffeine/caffeine-rtc
 	url = https://github.com/caffeinetv/caffeine-rtc

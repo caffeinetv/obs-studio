@@ -79,27 +79,6 @@ else()
 endif()
 
 
-#TODO: make bona fide find_package so this can be used x-plat
-#TODO: copy dll to bin output dir
-if (EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/caffeine-rtc/src")
-	#find_package(caffeine-rtc REQUIRED)
-	#include_directories(${caffeine-rtc_INCLUDE_DIRS})
-
-	set(caffeine_SOURCES
-		caffeine-output.c)
-	set(caffeine_HEADERS
-		caffeine-rtc/src/caffeine/caffeine.h)
-
-	#set(caffeine_IMPORTS
-	#	${caffeine-rtc_LIBRARIES})
-
-	include_directories(caffeine-rtc/src/caffeine)
-
-	set(COMPILE_CAFFEINE TRUE)
-else()
-	set(COMPILE_CAFFEINE FALSE)
-endif()
-
 configure_file(
 	"${CMAKE_CURRENT_SOURCE_DIR}/obs-outputs-config.h.in"
 	"${CMAKE_BINARY_DIR}/plugins/obs-outputs/config/obs-outputs-config.h")
@@ -180,8 +159,6 @@ set(obs-outputs_SOURCES
 add_library(obs-outputs MODULE
 	${ftl_SOURCES}
 	${ftl_HEADERS}
-    ${caffeine_SOURCES}
-    ${caffeine_HEADERS}
 	${obs-outputs_SOURCES}
 	${obs-outputs_HEADERS}
 	${obs-outputs_librtmp_SOURCES}
@@ -191,7 +168,6 @@ target_link_libraries(obs-outputs
 	${LIBMBEDTLS_LIBRARIES}
 	${ZLIB_LIBRARIES}
 	${ftl_IMPORTS}
-    ${caffeine_IMPORTS}
 	${obs-outputs_PLATFORM_DEPS})
 
 install_obs_plugin_with_data(obs-outputs data)
