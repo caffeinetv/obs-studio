@@ -19,6 +19,11 @@ else()
 	set(_bin_suffix 32)
 endif()
 
+string(REGEX REPLACE ".lib$" "" _caffeine_dll ${CAFFEINE_LIB})
+
+file(GLOB CAFFEINE_BIN_FILES
+	${_caffeine_dll})
+
 file(GLOB FFMPEG_BIN_FILES
 	"${FFMPEG_avcodec_INCLUDE_DIR}/../bin/avcodec-*.dll"
 	"${FFMPEG_avcodec_INCLUDE_DIR}/../bin${_bin_suffix}/avcodec-*.dll"
@@ -173,6 +178,7 @@ file(GLOB QT_ICU_BIN_FILES
 	"${Qt5Core_DIR}/../../../bin/icu*.dll")
 
 set(ALL_BASE_BIN_FILES
+	${CAFFEINE_BIN_FILES}
 	${FFMPEG_BIN_FILES}
 	${X264_BIN_FILES}
 	${CURL_BIN_FILES}
@@ -210,6 +216,7 @@ foreach(list
 	endif()
 endforeach()
 
+message(STATUS "Caffeine files: ${CAFFEINE_BIN_FILES}")
 message(STATUS "FFmpeg files: ${FFMPEG_BIN_FILES}")
 message(STATUS "x264 files: ${X264_BIN_FILES}")
 message(STATUS "Libfdk files: ${LIBFDK_BIN_FILES}")

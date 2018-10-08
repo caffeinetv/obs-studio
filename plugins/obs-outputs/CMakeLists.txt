@@ -78,6 +78,7 @@ else()
 	set(COMPILE_FTL FALSE)
 endif()
 
+
 configure_file(
 	"${CMAKE_CURRENT_SOURCE_DIR}/obs-outputs-config.h.in"
 	"${CMAKE_BINARY_DIR}/plugins/obs-outputs/config/obs-outputs-config.h")
