@@ -19,11 +19,10 @@ else()
 	set(_bin_suffix 32)
 endif()
 
+string(REGEX REPLACE ".lib$" "" _caffeine_dll ${CAFFEINE_LIB})
+
 file(GLOB CAFFEINE_BIN_FILES
-	"${CAFFEINE_INCLUDE_DIR}/../bin/caffeine-rtc.dll"
-	"${CAFFEINE_INCLUDE_DIR}/../bin${_bin_suffix}/caffeine-rtc.dll"
-	"${CAFFEINE_INCLUDE_DIR}/../bin/caffeine-rtc.pdb"
-	"${CAFFEINE_INCLUDE_DIR}/../bin${_bin_suffix}/caffeine-rtc.pdb")
+	${_caffeine_dll})
 
 file(GLOB FFMPEG_BIN_FILES
 	"${FFMPEG_avcodec_INCLUDE_DIR}/../bin/avcodec-*.dll"

@@ -19,6 +19,13 @@ else()
 	set(_lib_suffix 32)
 endif()
 
+if(WIN32)
+	set(_os win)
+else()
+	message(STATUS "TODO: other os's.")
+	return()
+endif()
+
 find_path(CAFFEINE_INCLUDE_DIR
 	NAMES caffeine.h
 	HINTS
@@ -34,11 +41,15 @@ find_path(CAFFEINE_INCLUDE_DIR
 	PATHS
 		/usr/include /usr/local/include /opt/local/include /sw/include
 	PATH_SUFFIXES
+		src/caffeine
 		caffeine include/caffeine include)
 
+set(_build_dir_base "${_os}_x${_lib_suffix}")
+
 find_library(CAFFEINE_LIB
-	NAMES caffeine-rtc libcaffeine-rtc
+	NAMES caffeine-rtc caffeine-rtc.dll libcaffeine-rtc
 	HINTS
+		${CAFFEINE_INCLUDE_DIR}
 		ENV CaffeinePath{_lib_suffix}
 		ENV CaffeinePath
 		ENV DepsPath${_lib_suffix}
@@ -51,6 +62,10 @@ find_library(CAFFEINE_LIB
 	PATHS
 		/usr/lib /usr/local/lib /opt/local/lib /sw/lib
 	PATH_SUFFIXES
+		../out/${_build_dir_base}_debug
+		../out/${_build_dir_base}_release
+		src/out/${_build_dir_base}_debug
+		src/out/${_build_dir_base}_release
 		lib${_lib_suffix} lib
 		libs${_lib_suffix} libs
 		bin${_lib_suffix} bin
