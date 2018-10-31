@@ -103,6 +103,7 @@ private:
 	void AddFrameRate(obs_property_t *prop, bool &warning,
 			QFormLayout *layout, QLabel *&label);
 	void AddMessage(obs_property_t *prop, QFormLayout *layout);
+	void SetTransient(obs_property_t *prop);
 
 	void AddProperty(obs_property_t *property, QFormLayout *layout);
 

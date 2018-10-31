@@ -1328,6 +1328,13 @@ void OBSPropertiesView::AddFrameRate(obs_property_t *prop, bool &warning,
 	});
 }
 
+void OBSPropertiesView::SetTransient(obs_property_t *prop)
+{
+	const char *name = obs_property_name(prop);
+	bool       val   = obs_property_transient(prop);
+	obs_data_set_transient(settings, name, val);
+}
+
 void OBSPropertiesView::AddMessage(obs_property_t *prop, QFormLayout * layout)
 {
 	const char *desc = obs_property_description(prop);
@@ -1347,6 +1354,8 @@ void OBSPropertiesView::AddProperty(obs_property_t *property,
 	QLabel  *label  = nullptr;
 	QWidget *widget = nullptr;
 	bool    warning = false;
+
+	SetTransient(property);
 
 	switch (type) {
 	case OBS_PROPERTY_INVALID:
@@ -1755,8 +1764,9 @@ void WidgetInfo::TogglePasswordText(bool show)
 
 void WidgetInfo::ControlChanged()
 {
-	const char        *setting = obs_property_name(property);
-	obs_property_type type     = obs_property_get_type(property);
+	const char        *setting  = obs_property_name(property);
+	obs_property_type type      = obs_property_get_type(property);
+	bool              transient = obs_property_transient(property);
 
 	switch (type) {
 	case OBS_PROPERTY_INVALID: return;
@@ -1784,6 +1794,8 @@ void WidgetInfo::ControlChanged()
 			return;
 		break;
 	}
+
+	obs_data_set_transient(view->settings, setting, transient);
 
 	if (view->callback && !view->deferUpdate)
 		view->callback(view->obj, view->settings);
