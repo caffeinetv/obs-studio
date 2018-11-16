@@ -1753,6 +1753,7 @@ void WidgetInfo::ButtonClicked()
 	if (obs_property_button_clicked3(property, view->settings, view->obj)) {
 		QMetaObject::invokeMethod(view, "RefreshProperties",
 				Qt::QueuedConnection);
+		view->SignalChanged();
 	}
 }
 
