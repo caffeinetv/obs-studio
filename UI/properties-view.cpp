@@ -1750,11 +1750,13 @@ void WidgetInfo::EditableListChanged()
 
 void WidgetInfo::ButtonClicked()
 {
+	QApplication::setOverrideCursor(Qt::WaitCursor);
 	if (obs_property_button_clicked3(property, view->settings, view->obj)) {
 		QMetaObject::invokeMethod(view, "RefreshProperties",
 				Qt::QueuedConnection);
 		view->SignalChanged();
 	}
+	QApplication::restoreOverrideCursor();
 }
 
 void WidgetInfo::TogglePasswordText(bool show)
