@@ -38,7 +38,7 @@ struct caffeine_output
 	caff_stream_handle stream;
 	struct caffeine_stream_info * stream_info;
 	pthread_mutex_t stream_mutex;
-	pthread_t heartbeat_thread;
+	pthread_t broadcast_thread;
 	struct obs_video_info video_info;
 
 	pthread_cond_t screenshot_cond;
@@ -323,7 +323,7 @@ static bool caffeine_ice_gathered(
 	return result;
 }
 
-static void * heartbeat(void * data);
+static void * broadcast_thread(void * data);
 
 static void caffeine_stream_started(void *data)
 {
@@ -336,7 +336,7 @@ static void caffeine_stream_started(void *data)
 
 	obs_output_begin_data_capture(context->output, 0);
 
-	pthread_create(&context->heartbeat_thread, NULL, heartbeat, context);
+	pthread_create(&context->broadcast_thread, NULL, broadcast_thread, context);
 }
 
 static void caffeine_stop_stream(struct caffeine_output * context);
@@ -382,10 +382,10 @@ found:
 	return id;
 }
 
-static void * heartbeat(void * data)
+static void * broadcast_thread(void * data)
 {
 	trace();
-	os_set_thread_name("Caffeine heartbeat");
+	os_set_thread_name("Caffeine broadcast");
 
 	struct caffeine_output * context = data;
 
@@ -717,7 +717,7 @@ static void caffeine_stop(void *data, uint64_t ts)
 	obs_output_t *output = context->output;
 
 	set_state(context, STOPPING);
-	pthread_join(context->heartbeat_thread, NULL);
+	pthread_join(context->broadcast_thread, NULL);
 
 	caffeine_stop_stream(context);
 
