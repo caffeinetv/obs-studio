@@ -8,6 +8,7 @@
 #include "obs-ffmpeg-formats.h"
 
 #include <util/base.h>
+#include <util/dstr.h>
 #include <util/platform.h>
 #include <util/threading.h>
 
@@ -19,6 +20,16 @@
 
 #define CAFFEINE_LOG_TITLE "caffeine output"
 #include "caffeine-log.h"
+
+#define set_error(fmt, ...) \
+	do { \
+		struct dstr message; \
+		dstr_init(&message); \
+		dstr_printf(&message, fmt, __VA_ARGS__); \
+		log_error("%s", message.array); \
+		obs_output_set_last_error(context->output, message.array); \
+		dstr_free(&message); \
+	} while(false)
 
 // Uncomment this to log each call to raw_audio/video
 //#define TRACE_FRAMES
@@ -201,7 +212,7 @@ static bool caffeine_start(void *data)
 	struct caffeine_output *context = data;
 
 	if (!obs_get_video_info(&context->video_info)) {
-		log_error("Failed to get video info");
+		set_error("Failed to get video info");
 		return false;
 	}
 
@@ -213,7 +224,7 @@ static bool caffeine_start(void *data)
 	double ratio = (double)context->video_info.output_width /
 		context->video_info.output_height;
 	if (ratio < min_ratio || ratio > max_ratio) {
-		log_error("Aspect ratio of output must be >= 1:3 or <= 3:1 for "
+		set_error("Aspect ratio of output must be >= 1:3 or <= 3:1 for "
 			  "Caffeine");
 		return false;
 	}
@@ -222,7 +233,7 @@ static bool caffeine_start(void *data)
 		obs_to_caffeine_format(context->video_info.output_format);
 
 	if (format == CAFF_FORMAT_UNKNOWN) {
-		log_error("Unsupported video format %s",
+		set_error("Unsupported video format %s",
 			get_video_format_name(context->video_info.output_format));
 		return false;
 	}
@@ -253,7 +264,7 @@ static bool caffeine_start(void *data)
 			caffeine_stream_started, caffeine_stream_failed);
 	if (!stream) {
 		set_state(context, OFFLINE);
-		log_error("Failed to start stream");
+		set_error("Failed to start stream");
 		return false;
 	}
 
@@ -342,9 +353,9 @@ static void caffeine_stop_stream(struct caffeine_output * context);
 
 static void caffeine_stream_failed(void *data, caff_error error)
 {
-	log_error("Stream failed: [%d] %s", error, caff_error_string(error));
-
 	struct caffeine_output *context = data;
+
+	set_error("Stream failed: [%d] %s", error, caff_error_string(error));
 
 	set_state(context, STOPPING);
 	caffeine_stop_stream(context);
@@ -539,7 +550,7 @@ static void create_screenshot(
 	int               ret            = 0;
 
 	if (image_data == NULL) {
-		log_error("No image data for screenshot");
+		log_warn("No image data for screenshot");
 		goto err_no_image_data;
 	}
 
@@ -547,14 +558,14 @@ static void create_screenshot(
 	codec = avcodec_find_encoder(AV_CODEC_ID_MJPEG);
 
 	if (codec == NULL) {
-		log_error("Unable to load screenshot encoder");
+		log_warn("Unable to load screenshot encoder");
 		goto err_jpeg_codec_not_found;
 	}
 
 	codec_context = avcodec_alloc_context3(codec);
 
 	if (codec_context == NULL) {
-		log_error("Couldn't allocate codec context");
+		log_warn("Couldn't allocate codec context");
 		goto err_jpeg_encoder_context_alloc;
 	}
 
@@ -568,14 +579,14 @@ static void create_screenshot(
 	codec_context->codec_type = AVMEDIA_TYPE_VIDEO;
 
 	if (avcodec_open2(codec_context, codec, NULL) != 0) {
-		log_error("Couldn't open codec");
+		log_warn("Couldn't open codec");
 		goto err_jpeg_encoder_open;
 	}
 
 	frame = av_frame_alloc();
 
 	if (frame == NULL) {
-		log_error("Couldn't allocate frame");
+		log_warn("Couldn't allocate frame");
 		goto err_av_frame_alloc;
 	}
 
@@ -593,7 +604,7 @@ static void create_screenshot(
 		32);
 
 	if (ret < 0) {
-		log_error("Couldn't allocate image");
+		log_warn("Couldn't allocate image");
 		goto err_av_image_alloc;
 	}
 
@@ -614,7 +625,7 @@ static void create_screenshot(
 			NULL);
 
 	if (sws_context == NULL) {
-		log_error("Couldn't get scaling context");
+		log_warn("Couldn't get scaling context");
 		goto err_sws_getContext;
 	}
 
@@ -629,7 +640,7 @@ static void create_screenshot(
 			frame->linesize);
 
 	if (ret < 0) {
-		log_error("Couldn't translate image format");
+		log_warn("Couldn't translate image format");
 		goto err_sws_scale;
 	}
 
@@ -641,7 +652,7 @@ static void create_screenshot(
 		frame, &got_output);
 
 	if (ret != 0 || !got_output) {
-		log_error("Failed to generate screenshot. avcodec_encode_video2"
+		log_warn("Failed to generate screenshot. avcodec_encode_video2"
 			  " returned %d", ret);
 		goto err_encode;
 	}
