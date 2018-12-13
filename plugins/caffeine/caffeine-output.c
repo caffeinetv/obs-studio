@@ -411,6 +411,8 @@ static void * broadcast_thread(void * data)
 	obs_service_t * service = obs_output_get_service(context->output);
 	char * stage_id = bstrdup(
 		obs_service_query(service, CAFFEINE_QUERY_STAGE_ID));
+	char * username = bstrdup(
+		obs_service_query(service, CAFFEINE_QUERY_USERNAME));
 	char * title = bstrdup(
 		obs_service_query(service, CAFFEINE_QUERY_BROADCAST_TITLE));
 	struct caffeine_credentials * creds =
