@@ -208,6 +208,53 @@ bool AutoConfigVideoPage::validatePage()
 	return true;
 }
 
+void AutoConfigStreamPage::PropertiesChanged()
+{
+	/*
+	const char *type;
+	size_t idx = 0;
+	ui->streamType->clear();
+
+	while (obs_enum_service_types(idx++, &type)) {
+		const char *name = obs_service_get_display_name(type);
+		QString qName = QT_UTF8(name);
+		QString qType = QT_UTF8(type);
+		ui->streamType->addItem(qName, qType);
+	}
+	*/
+
+	QString qServiceType = "";
+	if (ui->streamType->currentIndex() >= 0)
+		qServiceType = (ui->streamType->currentData()).toString();
+
+	blog(LOG_INFO, "service: %s", qServiceType.toStdString().c_str());
+	/*
+	std::string service = obs_data_get_string(serviceSettings, "service");
+	blog(LOG_INFO, "service: %s", service.c_str());
+	*/
+	/*
+	std::string type;
+	std::string service;
+	std::string server;
+	std::string key;
+	//std::string
+	GetServiceInfo(type, service, server, key);
+	*/
+	streamPropertiesLayout->removeWidget(streamProperties);
+	//delete streamProperties;
+	streamProperties->deleteLater();
+	streamProperties = new OBSPropertiesView(serviceSettings, qServiceType.toStdString().c_str(),
+		(PropertiesReloadCallback)obs_get_service_properties,
+		170);
+	streamProperties->setProperty("changed", QVariant(false));
+
+	QObject::connect(streamProperties, SIGNAL(Changed()),
+		this, SLOT(PropertiesChanged()));
+	streamPropertiesLayout->addWidget(streamProperties);
+}
+
+
+
 /* ------------------------------------------------------------------------- */
 
 AutoConfigStreamPage::AutoConfigStreamPage(QWidget *parent)
@@ -215,17 +262,58 @@ AutoConfigStreamPage::AutoConfigStreamPage(QWidget *parent)
 	  ui          (new Ui_AutoConfigStreamPage)
 {
 	ui->setupUi(this);
+
+	streamPropertiesLayout = new QVBoxLayout(this);
+
+	obs_service_t *service = static_cast<OBSBasic*>(QApplication::activeWindow())->GetService();
+	const char *service_type = obs_service_get_type(service);
+
+	serviceSettings = obs_service_get_settings(service);
+
+	streamProperties = new OBSPropertiesView(serviceSettings, service_type,
+		(PropertiesReloadCallback)obs_get_service_properties,
+		170);
+	streamProperties->setProperty("changed", QVariant(false));
+
+	QObject::connect(streamProperties, SIGNAL(Changed()),
+			this, SLOT(PropertiesChanged()));
+
+	streamPropertiesLayout->addWidget(streamProperties);
+	ui->formLayout->insertRow(1, streamPropertiesLayout);
+
+	obs_data_release(serviceSettings);
+
 	ui->bitrateLabel->setVisible(false);
 	ui->bitrate->setVisible(false);
 
+	size_t idx = 0;
+	const char *type;
+
+	while (obs_enum_service_types(idx++, &type)) {
+		const char *name = obs_service_get_display_name(type);
+		QString qName = QT_UTF8(name);
+		QString qType = QT_UTF8(type);
+		ui->streamType->addItem(qName, qType);
+	}
+	/*
 	ui->streamType->addItem(obs_service_get_display_name("rtmp_common"));
 	ui->streamType->addItem(obs_service_get_display_name("rtmp_custom"));
-
+	*/
 	setTitle(QTStr("Basic.AutoConfig.StreamPage"));
 	setSubTitle(QTStr("Basic.AutoConfig.StreamPage.SubTitle"));
 
 	LoadServices(false);
 
+	connect(ui->streamType, SIGNAL(currentIndexChanged(int)),
+		this, SLOT(PropertiesChanged()));
+
+	ui->service->setVisible(false);
+	ui->customServer->setVisible(false);
+	ui->key->setVisible(false);
+	ui->region->setVisible(false);
+	ui->serverLabel->setVisible(false);
+
+	/*
 	connect(ui->streamType, SIGNAL(currentIndexChanged(int)),
 			this, SLOT(ServiceChanged()));
 	connect(ui->service, SIGNAL(currentIndexChanged(int)),
@@ -253,11 +341,13 @@ AutoConfigStreamPage::AutoConfigStreamPage(QWidget *parent)
 			this, SLOT(UpdateCompleted()));
 	connect(ui->regionOther, SIGNAL(toggled(bool)),
 			this, SLOT(UpdateCompleted()));
+	*/
 }
 
 AutoConfigStreamPage::~AutoConfigStreamPage()
 {
 	delete ui;
+	obs_data_release(serviceSettings);
 }
 
 bool AutoConfigStreamPage::isComplete() const
@@ -365,6 +455,7 @@ void AutoConfigStreamPage::ServiceChanged()
 		return;
 
 	std::string service = QT_TO_UTF8(ui->service->currentText());
+	//std::string service = QT_TO_UTF8(streamProperties->ui)
 	bool regionBased = service == "Twitch" ||
 	                   service == "Smashcast";
 	bool testBandwidth = ui->doBandwidthTest->isChecked();
