@@ -12,6 +12,8 @@
 #include <string>
 #include <mutex>
 
+#include "properties-view.hpp"
+
 class Ui_AutoConfigStartPage;
 class Ui_AutoConfigVideoPage;
 class Ui_AutoConfigStreamPage;
@@ -160,6 +162,9 @@ class AutoConfigStreamPage : public QWizardPage {
 	bool ready = false;
 
 	void LoadServices(bool showAll);
+	OBSPropertiesView *streamProperties = nullptr;
+	OBSData serviceSettings;
+	QVBoxLayout *streamPropertiesLayout = nullptr;
 
 public:
 	AutoConfigStreamPage(QWidget *parent = nullptr);
@@ -175,6 +180,7 @@ public slots:
 	void UpdateKeyLink();
 	void UpdateServerList();
 	void UpdateCompleted();
+	void PropertiesChanged();
 };
 
 class AutoConfigTestPage : public QWizardPage {
