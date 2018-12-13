@@ -3,6 +3,8 @@
 #include <caffeine.h>
 
 struct caffeine_credentials;
+struct json_t;
+typedef struct json_t json_t;
 
 struct caffeine_auth_response {
 	struct caffeine_credentials * credentials;
@@ -40,6 +42,35 @@ enum caffeine_rating {
 	CAFF_RATING_NONE,
 	CAFF_RATING_SEVENTEEN_PLUS,
 	CAFF_RATING_MAX,
+};
+
+struct caffeine_stage_request {
+    char * client_id;
+    char * cursor;
+    json_t * payload;
+};
+
+struct caffeine_stage_response {
+    char * cursor;
+    double retry_in;
+    json_t * payload;
+};
+
+struct caffeine_display_message {
+    char * title;
+    char * body;
+};
+
+struct caffeine_failure_response {
+    char * uuid;
+    char * type;
+    char * reason;
+    struct caffeine_display_message display_message;
+};
+
+struct caffeine_stage_response_result {
+    struct caffeine_stage_response * response;
+    struct caffeine_failure_response * failure;
 };
 
 struct caffeine_auth_response * caffeine_signin(
@@ -106,3 +137,12 @@ bool end_broadcast(
 	char const * title,
 	enum caffeine_rating rating,
 	struct caffeine_credentials * creds);
+
+void caffeine_free_stage_response(struct caffeine_stage_response ** response);
+void caffeine_free_failure(struct caffeine_failure_response ** failure);
+void caffeine_free_stage_response_result(struct caffeine_stage_response_result ** result);
+
+struct caffeine_stage_response_result * caffeine_stage_update(
+        char const * username,
+        struct caffeine_stage_request const * request,
+        struct caffeine_credentials * creds);
