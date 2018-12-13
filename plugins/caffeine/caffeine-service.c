@@ -324,13 +324,13 @@ static bool caffeine_service_initialize(void * data, obs_output_t * output)
 		obs_data_get_string(settings, REFRESH_TOKEN_KEY);
 
 	if (strcmp(refresh_token, "") == 0) {
-		set_error("You must sign into Caffeine on the settings screen");
+		set_error(obs_module_text("ErrorMustSignIn"));
 		return false;
 	}
 
 	char const * title = obs_data_get_string(settings, BROADCAST_TITLE_KEY);
 	if (strcmp(title, "") == 0) {
-		set_error("You must set a broadcast title in Caffeine settings");
+		set_error(obs_module_text("ErrorMustSetTitle"));
 		return false;
 	}
 
@@ -345,7 +345,7 @@ static bool caffeine_service_initialize(void * data, obs_output_t * output)
 	credentials = caffeine_refresh_auth(context->refresh_token);
 
 	if (!credentials) {
-		set_error("Refresh failed. Signed out of caffeine");
+		set_error(obs_module_text("ErrorExpiredAuth"));
 		/* todo switch to non-logged-in state*/
 		return false;
 	}
@@ -353,11 +353,11 @@ static bool caffeine_service_initialize(void * data, obs_output_t * output)
 	user_info = caffeine_getuser(credentials);
 
 	if (!user_info) {
-		set_error("Failed to get user info");
+		set_error(obs_module_text("ErrorNoUserInfo"));
 		goto cleanup_auth;
 	}
 	if (!user_info->can_broadcast) {
-		set_error("This user is not able to broadcast");
+		set_error(obs_module_text("ErrorCantBroadcast"));
 		caffeine_free_user_info(&user_info);
 		goto cleanup_auth;
 	}

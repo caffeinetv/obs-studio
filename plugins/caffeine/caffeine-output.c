@@ -224,8 +224,7 @@ static bool caffeine_start(void *data)
 	double ratio = (double)context->video_info.output_width /
 		context->video_info.output_height;
 	if (ratio < min_ratio || ratio > max_ratio) {
-		set_error("Aspect ratio of output must be >= 1:3 or <= 3:1 for "
-			  "Caffeine");
+		set_error(obs_module_text("ErrorAspectRatio"));
 		return false;
 	}
 
@@ -233,7 +232,7 @@ static bool caffeine_start(void *data)
 		obs_to_caffeine_format(context->video_info.output_format);
 
 	if (format == CAFF_FORMAT_UNKNOWN) {
-		set_error("Unsupported video format %s",
+		set_error("%s %s", obs_module_text("ErrorVideoFormat"),
 			get_video_format_name(context->video_info.output_format));
 		return false;
 	}
@@ -264,7 +263,7 @@ static bool caffeine_start(void *data)
 			caffeine_stream_started, caffeine_stream_failed);
 	if (!stream) {
 		set_state(context, OFFLINE);
-		set_error("Failed to start stream");
+		set_error(obs_module_text("ErrorStartStream"));
 		return false;
 	}
 
@@ -355,7 +354,8 @@ static void caffeine_stream_failed(void *data, caff_error error)
 {
 	struct caffeine_output *context = data;
 
-	set_error("Stream failed: [%d] %s", error, caff_error_string(error));
+	set_error("%s: [%d] %s", obs_module_text("ErrorStartStream"), error,
+		caff_error_string(error));
 
 	set_state(context, STOPPING);
 	caffeine_stop_stream(context);
