@@ -25,7 +25,7 @@
 	do { \
 		struct dstr message; \
 		dstr_init(&message); \
-		dstr_printf(&message, fmt, __VA_ARGS__); \
+        dstr_printf(&message, fmt, ##__VA_ARGS__); \
 		log_error("%s", message.array); \
 		obs_output_set_last_error(context->output, message.array); \
 		dstr_free(&message); \
