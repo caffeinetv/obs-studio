@@ -299,7 +299,7 @@ static void caffeine_service_defaults(obs_data_t *defaults)
 {
 	trace();
 	obs_data_set_default_string(defaults, BROADCAST_TITLE_KEY,
-		"LIVE on Caffeine!");
+		obs_module_text("DefaultBroadcastTitle"));
 }
 
 #define set_error(fmt, ...) \
