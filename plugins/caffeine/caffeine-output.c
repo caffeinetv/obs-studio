@@ -20,9 +20,8 @@
 #define CAFFEINE_LOG_TITLE "caffeine output"
 #include "caffeine-log.h"
 
-/* Uncomment this to log each call to raw_audio/video
-#define TRACE_FRAMES
-/**/
+// Uncomment this to log each call to raw_audio/video
+//#define TRACE_FRAMES
 
 enum state {
 	OFFLINE = 0,
@@ -361,12 +360,12 @@ static int get_game_id(struct caffeine_games * games)
 	char * foreground_process = get_foreground_process_name();
 	if (games && foreground_process) {
 		/* TODO: this is inside out; should have process name at toplevel */
-		for (int game_index = 0; game_index < games->num_games; ++game_index) {
+		for (size_t game_index = 0; game_index < games->num_games; ++game_index) {
 			struct caffeine_game_info * info =
 				games->game_infos[game_index];
 			if (!info)
 				continue;
-			for (int pname_index = 0; pname_index < info->num_process_names; ++pname_index) {
+			for (size_t pname_index = 0; pname_index < info->num_process_names; ++pname_index) {
 				char const * pname = info->process_names[pname_index];
 				if (!pname)
 					continue;
@@ -490,8 +489,8 @@ static void create_screenshot(
 	struct caffeine_output * context,
 	uint32_t width,
 	uint32_t height,
-	uint8_t *image_data[MAX_AV_PLANES],
-	uint32_t image_data_linesize[MAX_AV_PLANES],
+	const uint8_t *image_data[MAX_AV_PLANES],
+	int image_data_linesize[MAX_AV_PLANES],
 	enum video_format format);
 
 static void caffeine_raw_video(void *data, struct video_data *frame)
@@ -509,8 +508,8 @@ static void caffeine_raw_video(void *data, struct video_data *frame)
 
 	pthread_mutex_lock(&context->screenshot_mutex);
 	if (context->screenshot_needed)
-		create_screenshot(context, width, height, frame->data,
-			frame->linesize, context->video_info.output_format);
+		create_screenshot(context, width, height, (const uint8_t **)frame->data,
+			(int)frame->linesize, context->video_info.output_format);
 	pthread_mutex_unlock(&context->screenshot_mutex);
 
 	pthread_mutex_lock(&context->stream_mutex);
@@ -526,8 +525,8 @@ static void create_screenshot(
 	struct caffeine_output * context,
 	uint32_t width,
 	uint32_t height,
-	uint8_t *image_data[MAX_AV_PLANES],
-	uint32_t image_data_linesize[MAX_AV_PLANES],
+	const uint8_t *image_data[MAX_AV_PLANES],
+	int image_data_linesize[MAX_AV_PLANES],
 	enum video_format format)
 {
 	trace();
