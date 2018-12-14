@@ -161,7 +161,6 @@ class AutoConfigStreamPage : public QWizardPage {
 	QString lastService;
 	bool ready = false;
 
-	void LoadServices(bool showAll);
 	OBSPropertiesView *streamProperties = nullptr;
 	OBSData serviceSettings;
 	QVBoxLayout *streamPropertiesLayout = nullptr;
@@ -175,10 +174,8 @@ public:
 	virtual bool validatePage() override;
 
 public slots:
-	void on_show_clicked();
 	void ServiceChanged();
 	void UpdateKeyLink();
-	void UpdateServerList();
 	void UpdateCompleted();
 	void PropertiesChanged();
 };
