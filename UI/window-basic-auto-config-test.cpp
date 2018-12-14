@@ -125,25 +125,48 @@ void AutoConfigTestPage::GetServers(std::vector<ServerInfo> &servers)
 	obs_data_release(settings);
 	obs_data_set_string(settings, "service", wiz->serviceName.c_str());
 
-	obs_properties_t *ppts = obs_get_service_properties("rtmp_common");
-	obs_property_t *p = obs_properties_get(ppts, "service");
-	obs_property_modified(p, settings);
+	if (!wiz->serviceType.empty()) {
+		obs_properties_t *ppts = obs_get_service_properties(wiz->serviceType.c_str());
+		obs_property_t *p = obs_properties_get(ppts, "service");
+		obs_property_modified(p, settings);
 
-	p = obs_properties_get(ppts, "server");
-	size_t count = obs_property_list_item_count(p);
-	servers.reserve(count);
-
-	for (size_t i = 0; i < count; i++) {
-		const char *name = obs_property_list_item_name(p, i);
-		const char *server = obs_property_list_item_string(p, i);
-
-		if (wiz->CanTestServer(name)) {
-			ServerInfo info(name, server);
-			servers.push_back(info);
+		p = obs_properties_get(ppts, "server");
+		enum obs_property_type propertyType = obs_property_get_type(p);
+		switch (propertyType) {
+		case OBS_PROPERTY_LIST:
+		case OBS_PROPERTY_EDITABLE_LIST:
+			break;
+		default:
+			servers.emplace_back(wiz->server.c_str(), wiz->server.c_str());
+			return;
 		}
-	}
 
-	obs_properties_destroy(ppts);
+		if (propertyType == OBS_PROPERTY_LIST) {
+			enum obs_combo_format comboFormat = obs_property_list_format(p);
+			switch (comboFormat) {
+			case OBS_COMBO_FORMAT_STRING:
+				break;
+			default:
+				servers.emplace_back(wiz->server.c_str(), wiz->server.c_str());
+				return;
+			}
+		}
+
+		size_t count = obs_property_list_item_count(p);
+		servers.reserve(count);
+
+		for (size_t i = 0; i < count; i++) {
+			const char *name = obs_property_list_item_name(p, i);
+			const char *server = obs_property_list_item_string(p, i);
+
+			if (wiz->CanTestServer(name)) {
+				ServerInfo info(name, server);
+				servers.push_back(info);
+			}
+		}
+
+		obs_properties_destroy(ppts);
+	}
 }
 
 static inline void string_depad_key(string &key)
@@ -181,9 +204,7 @@ void AutoConfigTestPage::TestBandwidthThread()
 	/* -----------------------------------*/
 	/* create obs objects                 */
 
-	const char *serverType = wiz->customServer
-		? "rtmp_custom"
-		: "rtmp_common";
+	const char *serverType = wiz->serviceType.c_str();
 
 	OBSEncoder vencoder = obs_video_encoder_create("obs_x264",
 			"test_x264", nullptr, nullptr);
@@ -220,8 +241,13 @@ void AutoConfigTestPage::TestBandwidthThread()
 		key += "?bandwidthtest";
 	}
 
+	/* Apply service settings (except for server) */
+	obs_data_apply(service_settings, wiz->serviceSettings);
+
 	obs_data_set_string(service_settings, "service",
 			wiz->serviceName.c_str());
+
+	obs_data_erase(service_settings, "server");
 	obs_data_set_string(service_settings, "key", key.c_str());
 
 	obs_data_set_int(vencoder_settings, "bitrate", wiz->startingBitrate);
@@ -943,11 +969,7 @@ void AutoConfigTestPage::FinalizeResults()
 	};
 
 	if (wiz->type != AutoConfig::Type::Recording) {
-		const char *serverType = wiz->customServer
-			? "rtmp_custom"
-			: "rtmp_common";
-
-		OBSService service = obs_service_create(serverType,
+		OBSService service = obs_service_create(wiz->serviceType.c_str(),
 				"temp_service", nullptr, nullptr);
 		obs_service_release(service);
 
