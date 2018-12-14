@@ -176,7 +176,6 @@ public:
 	virtual bool validatePage() override;
 
 public slots:
-	void ServiceChanged();
 	void UpdateKeyLink();
 	void UpdateCompleted();
 	void PropertiesChanged();
