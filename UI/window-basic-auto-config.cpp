@@ -314,8 +314,6 @@ AutoConfigStreamPage::AutoConfigStreamPage(QWidget *parent)
 	streamPropertiesLayout->addWidget(streamProperties);
 	ui->formLayout->insertRow(1, streamPropertiesLayout);
 
-	obs_data_release(serviceSettings);
-
 	ui->bitrateLabel->setVisible(false);
 	ui->bitrate->setVisible(false);
 	ui->region->setVisible(false);
@@ -323,11 +321,14 @@ AutoConfigStreamPage::AutoConfigStreamPage(QWidget *parent)
 	size_t idx = 0;
 	const char *type;
 
-	while (obs_enum_service_types(idx++, &type)) {
+	while (obs_enum_service_types(idx, &type)) {
 		const char *name = obs_service_get_display_name(type);
 		QString qName = QT_UTF8(name);
 		QString qType = QT_UTF8(type);
 		ui->streamType->addItem(qName, qType);
+		if (strcmp(type, service_type) == 0)
+			ui->streamType->setCurrentIndex(idx);
+		idx++;
 	}
 
 	setTitle(QTStr("Basic.AutoConfig.StreamPage"));
@@ -339,13 +340,13 @@ AutoConfigStreamPage::AutoConfigStreamPage(QWidget *parent)
 	connect(ui->doBandwidthTest, SIGNAL(toggled(bool)),
 		this, SLOT(PropertiesChanged()));
 	connect(ui->regionUS, SIGNAL(toggled(bool)),
-		this, SLOT(UpdateCompleted()));
+		this, SLOT(PropertiesChanged()));
 	connect(ui->regionEU, SIGNAL(toggled(bool)),
-		this, SLOT(UpdateCompleted()));
+		this, SLOT(PropertiesChanged()));
 	connect(ui->regionAsia, SIGNAL(toggled(bool)),
-		this, SLOT(UpdateCompleted()));
+		this, SLOT(PropertiesChanged()));
 	connect(ui->regionOther, SIGNAL(toggled(bool)),
-		this, SLOT(UpdateCompleted()));
+		this, SLOT(PropertiesChanged()));
 }
 
 AutoConfigStreamPage::~AutoConfigStreamPage()
@@ -442,64 +443,6 @@ bool AutoConfigStreamPage::validatePage()
 	return true;
 }
 
-void AutoConfigStreamPage::ServiceChanged()
-{
-	/*
-	bool showMore = ui->service->currentData().toBool();
-	if (showMore)
-		return;
-
-	std::string service = QT_TO_UTF8(ui->service->currentText());
-	//std::string service = QT_TO_UTF8(streamProperties->ui)
-	bool regionBased = service == "Twitch" ||
-	                   service == "Smashcast";
-	bool testBandwidth = ui->doBandwidthTest->isChecked();
-	bool custom = ui->streamType->currentIndex() == 1;
-	*/
-	/* Test three closest servers if "Auto" is available for Twitch */
-	/*
-	if (service == "Twitch" && wiz->twitchAuto)
-		regionBased = false;
-
-	ui->service->setVisible(!custom);
-	ui->serviceLabel->setVisible(!custom);
-
-	ui->formLayout->removeWidget(ui->serviceLabel);
-	ui->formLayout->removeWidget(ui->service);
-
-	ui->formLayout->removeWidget(ui->serverLabel);
-	ui->formLayout->removeWidget(ui->serverStackedWidget);
-
-	if (custom) {
-		ui->formLayout->insertRow(1, ui->serverLabel,
-				ui->serverStackedWidget);
-
-		ui->region->setVisible(false);
-		ui->serverStackedWidget->setCurrentIndex(1);
-		ui->serverStackedWidget->setVisible(true);
-		ui->serverLabel->setVisible(true);
-	} else {
-		ui->formLayout->insertRow(1, ui->serviceLabel, ui->service);
-
-		if (!testBandwidth)
-			ui->formLayout->insertRow(2, ui->serverLabel,
-					ui->serverStackedWidget);
-
-		ui->region->setVisible(regionBased && testBandwidth);
-		ui->serverStackedWidget->setCurrentIndex(0);
-		ui->serverStackedWidget->setHidden(testBandwidth);
-		ui->serverLabel->setHidden(testBandwidth);
-	}
-
-	wiz->testRegions = regionBased && testBandwidth;
-
-	ui->bitrateLabel->setHidden(testBandwidth);
-	ui->bitrate->setHidden(testBandwidth);
-
-	UpdateCompleted();
-	*/
-}
-
 void AutoConfigStreamPage::UpdateKeyLink()
 {
 	/*
@@ -577,7 +520,6 @@ AutoConfig::AutoConfig(QWidget *parent)
 
 	installEventFilter(CreateShortcutFilter());
 
-	std::string serviceType;
 	GetServiceInfo(serviceType, serviceName, server, key);
 #ifdef _WIN32
 	setWizardStyle(QWizard::ModernStyle);
@@ -621,7 +563,6 @@ AutoConfig::AutoConfig(QWidget *parent)
 
 	int bitrate = config_get_int(main->Config(), "SimpleOutput", "VBitrate");
 	streamPage->ui->bitrate->setValue(bitrate);
-	streamPage->ServiceChanged();
 
 	streamPage->ui->preferHardware->setChecked(os_get_physical_cores() <= 4);
 
