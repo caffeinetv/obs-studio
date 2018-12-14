@@ -75,10 +75,12 @@ class AutoConfig : public QWizard {
 	int idealResolutionCY = 720;
 	int idealFPSNum = 60;
 	int idealFPSDen = 1;
+	std::string serviceType;
 	std::string serviceName;
 	std::string serverName;
 	std::string server;
 	std::string key;
+	OBSData serviceSettings;
 
 	bool hardwareEncodingAvailable = false;
 	bool nvencAvailable = false;
