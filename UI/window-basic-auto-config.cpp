@@ -265,6 +265,9 @@ void AutoConfigStreamPage::PropertiesChanged()
 
 	wiz->testRegions = regionBased && testBandwidth;
 
+	obs_data_clear(wiz->serviceSettings);
+	obs_data_apply(wiz->serviceSettings, serviceSettings);
+
 	/* Refresh available services */
 	/* breaks behavior?
 	const char *type;
@@ -393,18 +396,13 @@ bool AutoConfigStreamPage::validatePage()
 	obs_data_set_int(settings, "bitrate", bitrate);
 	obs_service_apply_encoder_settings(service, settings, nullptr);
 
+	wiz->serviceType = qServiceType.toStdString();
 	wiz->serverName = obs_data_get_string(serviceSettings, "service");
 	wiz->server = obs_data_get_string(serviceSettings, "server");
 
-	/*
-	if (wiz->customServer) {
-		QString server = ui->customServer->text();
-		wiz->server = wiz->serverName = QT_TO_UTF8(server);
-	} else {
-		wiz->serverName = QT_TO_UTF8(ui->server->currentText());
-		wiz->server = QT_TO_UTF8(ui->server->currentData().toString());
-	}
-	*/
+	if (wiz->customServer)
+		wiz->serverName = wiz->server;
+
 	wiz->bandwidthTest = ui->doBandwidthTest->isChecked();
 	wiz->startingBitrate = (int)obs_data_get_int(settings, "bitrate");
 	wiz->idealBitrate = wiz->startingBitrate;
@@ -413,10 +411,10 @@ bool AutoConfigStreamPage::validatePage()
 	wiz->regionAsia = ui->regionAsia->isChecked();
 	wiz->regionOther = ui->regionOther->isChecked();
 	wiz->serviceName = obs_data_get_string(serviceSettings, "service");
-	//qServiceTypeName.toStdString();//QT_TO_UTF8(ui->service->currentText());
+
 	if (ui->preferHardware)
 		wiz->preferHardware = ui->preferHardware->isChecked();
-	wiz->key = obs_data_get_string(serviceSettings, "key");//QT_TO_UTF8(ui->key->text());
+	wiz->key = obs_data_get_string(serviceSettings, "key");
 
 	if (!wiz->customServer) {
 		if (wiz->serviceName == "Twitch")
@@ -598,6 +596,8 @@ AutoConfig::AutoConfig(QWidget *parent)
 	baseResolutionCX = ovi.base_width;
 	baseResolutionCY = ovi.base_height;
 
+	serviceSettings = obs_data_create();
+
 	/* ----------------------------------------- */
 	/* check to see if Twitch's "auto" available */
 
@@ -643,6 +643,7 @@ AutoConfig::~AutoConfig()
 {
 	OBSBasic *main = reinterpret_cast<OBSBasic*>(App()->GetMainWindow());
 	main->EnableOutputs(true);
+	obs_data_release(serviceSettings);
 }
 
 void AutoConfig::TestHardwareEncoding()
@@ -730,23 +731,15 @@ void AutoConfig::SaveStreamSettings()
 	/* ---------------------------------- */
 	/* save service                       */
 
-	const char *service_id = customServer
-		? "rtmp_custom"
-		: "rtmp_common";
-
 	obs_service_t *oldService = main->GetService();
 	OBSData hotkeyData = obs_hotkeys_save_service(oldService);
 	obs_data_release(hotkeyData);
 
 	OBSData settings = obs_data_create();
 	obs_data_release(settings);
+	obs_data_apply(settings, serviceSettings);
 
-	if (!customServer)
-		obs_data_set_string(settings, "service", serviceName.c_str());
-	obs_data_set_string(settings, "server", server.c_str());
-	obs_data_set_string(settings, "key", key.c_str());
-
-	OBSService newService = obs_service_create(service_id,
+	OBSService newService = obs_service_create(serviceType.c_str(),
 			"default_service", settings, hotkeyData);
 	obs_service_release(newService);
 
