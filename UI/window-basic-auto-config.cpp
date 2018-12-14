@@ -215,6 +215,10 @@ void AutoConfigStreamPage::PropertiesChanged()
 	if (ui->streamType->currentIndex() >= 0)
 		qServiceType = (ui->streamType->currentData()).toString();
 
+	QString qService = obs_data_get_string(serviceSettings, "service");
+
+	bool custom = qServiceType.toStdString().find("_custom") != std::string::npos;
+
 	blog(LOG_INFO, "service: %s", qServiceType.toStdString().c_str());
 
 	/* Reconstruct properties view */
@@ -232,6 +236,35 @@ void AutoConfigStreamPage::PropertiesChanged()
 	const char* currentSettings = obs_data_get_json(serviceSettings);
 	blog(LOG_INFO, "%s", currentSettings);
 
+	bool testBandwidth = ui->doBandwidthTest->isChecked();
+
+	ui->bitrateLabel->setHidden(testBandwidth);
+	ui->bitrate->setHidden(testBandwidth);
+
+	std::vector<std::string> regionBasedServices = {
+		"Twitch",
+		"Smashcast"
+	};
+
+	bool regionBased = false;
+	for (size_t i = 0; i < regionBasedServices.size(); i++) {
+		if (qService.toStdString().find(regionBasedServices[i]) != std::string::npos) {
+			regionBased = true;
+			break;
+		}
+	}
+
+	if (wiz->twitchAuto && qService.toStdString().find("Twitch") != std::string::npos)
+		regionBased = false;
+	
+	if (custom) {
+		ui->region->setVisible(false);
+	} else {
+		ui->region->setVisible(regionBased && testBandwidth);
+	}
+
+	wiz->testRegions = regionBased && testBandwidth;
+
 	/* Refresh available services */
 	/* breaks behavior?
 	const char *type;
@@ -247,6 +280,7 @@ void AutoConfigStreamPage::PropertiesChanged()
 	}
 	ui->streamType->blockSignals(false);
 	*/
+	UpdateCompleted();
 }
 
 
@@ -279,10 +313,9 @@ AutoConfigStreamPage::AutoConfigStreamPage(QWidget *parent)
 
 	obs_data_release(serviceSettings);
 
-	/*
 	ui->bitrateLabel->setVisible(false);
 	ui->bitrate->setVisible(false);
-	*/
+	ui->region->setVisible(false);
 
 	size_t idx = 0;
 	const char *type;
@@ -293,55 +326,23 @@ AutoConfigStreamPage::AutoConfigStreamPage(QWidget *parent)
 		QString qType = QT_UTF8(type);
 		ui->streamType->addItem(qName, qType);
 	}
-	/*
-	ui->streamType->addItem(obs_service_get_display_name("rtmp_common"));
-	ui->streamType->addItem(obs_service_get_display_name("rtmp_custom"));
-	*/
+
 	setTitle(QTStr("Basic.AutoConfig.StreamPage"));
 	setSubTitle(QTStr("Basic.AutoConfig.StreamPage.SubTitle"));
-
-	LoadServices(false);
 
 	connect(ui->streamType, SIGNAL(currentIndexChanged(int)),
 		this, SLOT(PropertiesChanged()));
 
-	/*
-	ui->service->setVisible(false);
-	ui->customServer->setVisible(false);
-	ui->key->setVisible(false);
-	ui->region->setVisible(false);
-	ui->serverLabel->setVisible(false);
-	*/
-
-	/*
-	connect(ui->streamType, SIGNAL(currentIndexChanged(int)),
-			this, SLOT(ServiceChanged()));
-	connect(ui->service, SIGNAL(currentIndexChanged(int)),
-			this, SLOT(ServiceChanged()));
-	connect(ui->customServer, SIGNAL(textChanged(const QString &)),
-			this, SLOT(ServiceChanged()));
 	connect(ui->doBandwidthTest, SIGNAL(toggled(bool)),
-			this, SLOT(ServiceChanged()));
-
-	connect(ui->service, SIGNAL(currentIndexChanged(int)),
-			this, SLOT(UpdateServerList()));
-
-	connect(ui->streamType, SIGNAL(currentIndexChanged(int)),
-			this, SLOT(UpdateKeyLink()));
-	connect(ui->service, SIGNAL(currentIndexChanged(int)),
-			this, SLOT(UpdateKeyLink()));
-
-	connect(ui->key, SIGNAL(textChanged(const QString &)),
-			this, SLOT(UpdateCompleted()));
+		this, SLOT(PropertiesChanged()));
 	connect(ui->regionUS, SIGNAL(toggled(bool)),
-			this, SLOT(UpdateCompleted()));
+		this, SLOT(UpdateCompleted()));
 	connect(ui->regionEU, SIGNAL(toggled(bool)),
-			this, SLOT(UpdateCompleted()));
+		this, SLOT(UpdateCompleted()));
 	connect(ui->regionAsia, SIGNAL(toggled(bool)),
-			this, SLOT(UpdateCompleted()));
+		this, SLOT(UpdateCompleted()));
 	connect(ui->regionOther, SIGNAL(toggled(bool)),
-			this, SLOT(UpdateCompleted()));
-	*/
+		this, SLOT(UpdateCompleted()));
 }
 
 AutoConfigStreamPage::~AutoConfigStreamPage()
@@ -368,7 +369,7 @@ bool AutoConfigStreamPage::validatePage()
 	QString qServiceType = ui->streamType->currentData().toString();
 	QString qServiceTypeName = ui->streamType->currentText();
 
-	wiz->customServer = qServiceType.toStdString().find("_custom") >= 0;
+	wiz->customServer = qServiceType.toStdString().find("_custom") != std::string::npos;
 
 	const char *serverType = qServiceType.toStdString().c_str();
 
@@ -411,7 +412,8 @@ bool AutoConfigStreamPage::validatePage()
 	wiz->regionEU = ui->regionEU->isChecked();
 	wiz->regionAsia = ui->regionAsia->isChecked();
 	wiz->regionOther = ui->regionOther->isChecked();
-	wiz->serviceName = qServiceTypeName.toStdString();//QT_TO_UTF8(ui->service->currentText());
+	wiz->serviceName = obs_data_get_string(serviceSettings, "service");
+	//qServiceTypeName.toStdString();//QT_TO_UTF8(ui->service->currentText());
 	if (ui->preferHardware)
 		wiz->preferHardware = ui->preferHardware->isChecked();
 	wiz->key = obs_data_get_string(serviceSettings, "key");//QT_TO_UTF8(ui->key->text());
@@ -440,19 +442,6 @@ bool AutoConfigStreamPage::validatePage()
 	}
 
 	return true;
-}
-
-void AutoConfigStreamPage::on_show_clicked()
-{
-	/*
-	if (ui->key->echoMode() == QLineEdit::Password) {
-		ui->key->setEchoMode(QLineEdit::Normal);
-		ui->show->setText(QTStr("Hide"));
-	} else {
-		ui->key->setEchoMode(QLineEdit::Password);
-		ui->show->setText(QTStr("Show"));
-	}
-	*/
 }
 
 void AutoConfigStreamPage::ServiceChanged()
@@ -551,93 +540,6 @@ void AutoConfigStreamPage::UpdateKeyLink()
 	*/
 }
 
-void AutoConfigStreamPage::LoadServices(bool showAll)
-{
-	/*
-	obs_properties_t *props = obs_get_service_properties("rtmp_common");
-
-	OBSData settings = obs_data_create();
-	obs_data_release(settings);
-
-	obs_data_set_bool(settings, "show_all", showAll);
-
-	obs_property_t *prop = obs_properties_get(props, "show_all");
-	obs_property_modified(prop, settings);
-
-	ui->service->blockSignals(true);
-	ui->service->clear();
-
-	QStringList names;
-
-	obs_property_t *services = obs_properties_get(props, "service");
-	size_t services_count = obs_property_list_item_count(services);
-	for (size_t i = 0; i < services_count; i++) {
-		const char *name = obs_property_list_item_string(services, i);
-		names.push_back(name);
-	}
-
-	if (showAll)
-		names.sort();
-
-	for (QString &name : names)
-		ui->service->addItem(name);
-
-	if (!lastService.isEmpty()) {
-		int idx = ui->service->findText(lastService);
-		if (idx != -1)
-			ui->service->setCurrentIndex(idx);
-	}
-
-	if (!showAll) {
-		ui->service->addItem(
-			QTStr("Basic.AutoConfig.StreamPage.Service.ShowAll"),
-			QVariant(true));
-	}
-
-	obs_properties_destroy(props);
-
-	ui->service->blockSignals(false);
-	*/
-}
-
-void AutoConfigStreamPage::UpdateServerList()
-{
-	/*
-	QString serviceName = ui->service->currentText();
-	bool showMore = ui->service->currentData().toBool();
-
-	if (showMore) {
-		LoadServices(true);
-		ui->service->showPopup();
-		return;
-	} else {
-		lastService = serviceName;
-	}
-
-	obs_properties_t *props = obs_get_service_properties("rtmp_common");
-	obs_property_t *services = obs_properties_get(props, "service");
-
-	OBSData settings = obs_data_create();
-	obs_data_release(settings);
-
-	obs_data_set_string(settings, "service", QT_TO_UTF8(serviceName));
-	obs_property_modified(services, settings);
-
-	obs_property_t *servers = obs_properties_get(props, "server");
-
-	ui->server->clear();
-
-	size_t servers_count = obs_property_list_item_count(servers);
-	for (size_t i = 0; i < servers_count; i++) {
-		const char *name = obs_property_list_item_name(servers, i);
-		const char *server = obs_property_list_item_string(servers, i);
-		ui->server->addItem(name, server);
-	}
-
-	obs_properties_destroy(props);
-	*/
-}
-
 void AutoConfigStreamPage::UpdateCompleted()
 {
 	QString key = obs_data_get_string(serviceSettings, "key");
@@ -645,7 +547,7 @@ void AutoConfigStreamPage::UpdateCompleted()
 		ready = false;
 	} else {
 		QString qServiceType = ui->streamType->currentData().toString();
-		bool custom = qServiceType.toStdString().find("_custom") >= 0;
+		bool custom = qServiceType.toStdString().find("_custom") != std::string::npos;
 		if (custom) {
 			QString server = obs_data_get_string(serviceSettings, "server");
 			ready = !server.isEmpty();//!ui->customServer->text().isEmpty();
@@ -715,52 +617,7 @@ AutoConfig::AutoConfig(QWidget *parent)
 
 	/* ----------------------------------------- */
 	/* load service/servers                      */
-
-	customServer = serviceType == "rtmp_custom";
-	/*
-	QComboBox *serviceList = streamPage->ui->service;
-
-	if (!serviceName.empty()) {
-		serviceList->blockSignals(true);
-
-		int count = serviceList->count();
-		bool found = false;
-
-		for (int i = 0; i < count; i++) {
-			QString name = serviceList->itemText(i);
-
-			if (name == serviceName.c_str()) {
-				serviceList->setCurrentIndex(i);
-				found = true;
-				break;
-			}
-		}
-
-		if (!found) {
-			serviceList->insertItem(0, serviceName.c_str());
-			serviceList->setCurrentIndex(0);
-		}
-
-		serviceList->blockSignals(false);
-	}
-	
-	streamPage->UpdateServerList();
-	streamPage->UpdateKeyLink();
-
-	if (!customServer) {
-		QComboBox *serverList = streamPage->ui->server;
-		int idx = serverList->findData(QString(server.c_str()));
-		if (idx == -1)
-			idx = 0;
-
-		serverList->setCurrentIndex(idx);
-	} else {
-		streamPage->ui->customServer->setText(server.c_str());
-		streamPage->ui->streamType->setCurrentIndex(1);
-	}
-	if (!key.empty())
-		streamPage->ui->key->setText(key.c_str());
-	*/
+	customServer = serviceType.find("_custom") != std::string::npos;
 
 	int bitrate = config_get_int(main->Config(), "SimpleOutput", "VBitrate");
 	streamPage->ui->bitrate->setValue(bitrate);
