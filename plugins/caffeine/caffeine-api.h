@@ -25,7 +25,7 @@ struct caffeine_stream_info {
 
 /* TODO: game detection will be handled behind the scenes */
 struct caffeine_game_info {
-	int id;
+	char * id;
 	char * name;
 	char ** process_names;
 	size_t num_process_names;
@@ -82,6 +82,7 @@ bool caffeine_trickle_candidates(
 char * create_broadcast(
 	char const * title,
 	enum caffeine_rating rating,
+	char const * game_id,
 	uint8_t const * screenshot_data,
 	size_t screenshot_size,
 	struct caffeine_credentials * creds);
@@ -93,7 +94,7 @@ char * set_stage_live(
 	char const * stream_id,
 	char const * title,
 	enum caffeine_rating rating,
-	int game_id,
+	char const * game_id,
 	struct caffeine_credentials * creds);
 
 bool send_heartbeat(
@@ -101,8 +102,10 @@ bool send_heartbeat(
 	char const * signed_payload,
 	struct caffeine_credentials * creds);
 
-bool end_broadcast(
+bool update_broadcast(
 	char const * broadcast_id,
+	bool is_online,
 	char const * title,
 	enum caffeine_rating rating,
+	char const * game_id,
 	struct caffeine_credentials * creds);

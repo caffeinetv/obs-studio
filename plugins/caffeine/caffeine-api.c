@@ -23,7 +23,7 @@
 #define STREAM_URL         API_ENDPOINT  "v2/broadcasts/streams"
 #define TRICKLE_URL_F      API_ENDPOINT  "v2/broadcasts/streams/%s"
 #define BROADCAST_URL      API_ENDPOINT  "v1/broadcasts"
-#define BROADCAST_URL_F    BROADCAST_URL "/%s"
+#define BROADCAST_URL_F    API_ENDPOINT  "v1/broadcasts/%s"
 #define HEARTBEAT_URL_F    API_ENDPOINT  "v2/broadcasts/streams/%s/heartbeat"
 
 #define STAGE_STATE_URL_F  REALTIME_ENDPOINT "v2/stages/%s/details"
@@ -747,12 +747,12 @@ static struct caffeine_games * do_caffeine_get_supported_games()
 	size_t index;
 	json_t * value;
 	json_array_foreach(response_json, index, value) {
-		int id = 0;
+		int id_num = 0;
 		char const * name = NULL;
 		json_t * process_names = NULL;
 		int success_result = json_unpack_ex(value, &json_error, 0,
 			"{s:i,s:s,s:o}",
-			"id", &id,
+			"id", &id_num,
 			"name", &name,
 			"process_names", &process_names);
 		if (success_result != 0) {
@@ -767,9 +767,14 @@ static struct caffeine_games * do_caffeine_get_supported_games()
 			continue;
 		}
 
+		// Ownership will be stolen by the info below; don't free this
+		struct dstr id_str;
+		dstr_init(&id_str);
+		dstr_printf(&id_str, "%d", id_num);
+
 		struct caffeine_game_info * info =
 			bzalloc(sizeof(struct caffeine_game_info));
-		info->id = id;
+		info->id = id_str.array;
 		info->name = bstrdup(name);
 		info->num_process_names = num_processes;
 		info->process_names = bzalloc(num_processes * sizeof(char *));
@@ -817,6 +822,7 @@ void caffeine_free_game_info(struct caffeine_game_info ** info)
 		bfree((*info)->process_names[i]);
 		(*info)->process_names[i] = NULL;
 	}
+	bfree((*info)->id);
 	bfree((*info)->name);
 	bfree(*info);
 	*info = NULL;
@@ -1146,7 +1152,7 @@ static char * do_set_stage_live(
 	char const * stream_id,
 	char const * title,
 	enum caffeine_rating rating,
-	int game_id,
+	char const * game_id,
 	struct caffeine_credentials * creds)
 {
 	trace();
@@ -1162,7 +1168,7 @@ static char * do_set_stage_live(
 		return NULL;
 
 	struct dstr final_title = make_title(title, rating);
-	json_t * payload_json = json_pack("{s:s,s:s,s:i,s:[o],s:s}",
+	json_t * payload_json = json_pack("{s:s,s:s,s:s,s:[o],s:s}",
 		"state", is_live ? "ONLINE" : "OFFLINE",
 		"title", final_title.array,
 		"game_id", game_id,
@@ -1297,7 +1303,7 @@ char * set_stage_live(
 	char const * stream_id,
 	char const * title,
 	enum caffeine_rating rating,
-	int game_id,
+	char const * game_id,
 	struct caffeine_credentials * creds)
 {
 	retry_request(char*,
@@ -1320,6 +1326,7 @@ void add_text_part(
 static char * do_create_broadcast(
 	char const * title,
 	enum caffeine_rating rating,
+	char const * game_id,
 	uint8_t const * screenshot_data,
 	size_t screenshot_size,
 	struct caffeine_credentials * creds)
@@ -1341,7 +1348,7 @@ static char * do_create_broadcast(
 	dstr_free(&final_title);
 
 	add_text_part(&post, &last, "broadcast[state]", "ONLINE");
-	add_text_part(&post, &last, "broadcast[game_id]", "79");
+	add_text_part(&post, &last, "broadcast[game_id]", game_id);
 	if (screenshot_data) {
 		curl_formadd(&post, &last,
 			CURLFORM_COPYNAME, "broadcast[game_image]",
@@ -1431,19 +1438,22 @@ request_error:
 char * create_broadcast(
 	char const * title,
 	enum caffeine_rating rating,
+	char const * game_id,
 	uint8_t const * screenshot_data,
 	size_t screenshot_size,
 	struct caffeine_credentials * creds)
 {
 	retry_request(char*,
-		do_create_broadcast(title, rating, screenshot_data,
+		do_create_broadcast(title, rating, game_id, screenshot_data,
 				screenshot_size, creds));
 }
 
-static bool do_end_broadcast(
+static bool do_update_broadcast(
 	char const * broadcast_id,
+	bool is_online,
 	char const * title,
 	enum caffeine_rating rating,
+	char const * game_id,
 	struct caffeine_credentials * creds)
 {
 	trace();
@@ -1462,8 +1472,9 @@ static bool do_end_broadcast(
 	add_text_part(&post, &last, "broadcast[name]", final_title.array);
 	dstr_free(&final_title);
 
-	add_text_part(&post, &last, "broadcast[state]", "OFFLINE");
-	add_text_part(&post, &last, "broadcast[game_id]", "79");
+	add_text_part(&post, &last, "broadcast[state]",
+		is_online ? "ONLINE" : "OFFLINE");
+	add_text_part(&post, &last, "broadcast[game_id]", game_id);
 
 	curl_easy_setopt(curl, CURLOPT_HTTPPOST, post);
 	curl_easy_setopt(curl, CURLOPT_CUSTOMREQUEST, "PATCH");
@@ -1536,11 +1547,14 @@ request_error:
 	return result;
 }
 
-bool end_broadcast(
+bool update_broadcast(
 	char const * broadcast_id,
+	bool is_online,
 	char const * title,
 	enum caffeine_rating rating,
+	char const * game_id,
 	struct caffeine_credentials * creds)
 {
-	retry_request(bool, do_end_broadcast(broadcast_id, title, rating, creds));
+	retry_request(bool, do_update_broadcast(broadcast_id, is_online, title,
+						rating, game_id, creds));
 }
