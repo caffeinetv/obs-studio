@@ -33,13 +33,10 @@
 #define REFRESH_TOKEN_URL  API_ENDPOINT  "v1/account/token"
 #define GETGAMES_URL       API_ENDPOINT  "v1/games"
 #define GETUSER_URL_F      API_ENDPOINT  "v1/users/%s"
-#define STREAM_URL         API_ENDPOINT  "v2/broadcasts/streams"
-#define TRICKLE_URL_F      API_ENDPOINT  "v2/broadcasts/streams/%s"
-#define BROADCAST_URL      API_ENDPOINT  "v1/broadcasts"
 #define BROADCAST_URL_F    API_ENDPOINT  "v1/broadcasts/%s"
-#define HEARTBEAT_URL_F    API_ENDPOINT  "v2/broadcasts/streams/%s/heartbeat"
 
-#define STAGE_STATE_URL_F  REALTIME_ENDPOINT "v2/stages/%s/details"
+#define STAGE_UPDATE_URL_F REALTIME_ENDPOINT "v4/stage/%s"
+#define STREAM_HEARTBEAT_URL_F "%s/heartbeat"
 
 #define CONTENT_TYPE_JSON  "Content-Type: application/json"
 #define CONTENT_TYPE_FORM  "Content-Type: multipart/form-data"
@@ -516,6 +513,43 @@ void caffeine_free_auth_response(struct caffeine_auth_response ** auth_response)
 	*auth_response = NULL;
 }
 
+static bool do_refresh_credentials(struct caffeine_credentials * creds)
+{
+	trace();
+	char * refresh_token = NULL;
+	pthread_mutex_lock(&creds->mutex);
+	refresh_token = bstrdup(creds->refresh_token);
+	pthread_mutex_unlock(&creds->mutex);
+
+	struct caffeine_credentials * new_creds =
+	caffeine_refresh_auth(refresh_token);
+
+	if (!new_creds)
+		return false;
+
+#define swap(field) do { \
+	void * temp = creds->field; \
+	creds->field = new_creds->field; \
+	new_creds->field = temp; } while (false)
+
+	pthread_mutex_lock(&creds->mutex);
+	swap(access_token);
+	swap(caid);
+	swap(refresh_token);
+	swap(credential);
+	pthread_mutex_unlock(&creds->mutex);
+
+#undef swap
+
+	caffeine_free_credentials(&new_creds);
+	return true;
+}
+
+bool refresh_credentials(struct caffeine_credentials * creds)
+{
+	retry_request(bool, do_refresh_credentials(creds));
+}
+
 static struct caffeine_user_info * do_caffeine_getuser(
 	struct caffeine_credentials * creds)
 {
@@ -637,142 +671,6 @@ void caffeine_free_user_info(struct caffeine_user_info ** user_info)
 	bfree((*user_info)->stage_id);
 	bfree(*user_info);
 	*user_info = NULL;
-}
-
-static struct caffeine_stream_info * do_caffeine_start_stream(
-	char const * stage_id,
-	char const * sdp_offer,
-	struct caffeine_credentials * creds)
-{
-	trace();
-	struct caffeine_stream_info * response = NULL;
-
-	json_t * request_json = NULL;
-	request_json = json_pack("{s:s,s:s,s:s}",
-		"stage_id", stage_id,
-		"offer", sdp_offer,
-		"video_codec", "h264");
-
-	if (!request_json)
-	{
-		log_error("Failed to create request JSON");
-		goto request_json_error;
-	}
-
-	char * request_body = json_dumps(request_json, 0);
-	if (!request_body)
-	{
-		log_error("Failed to serialize request JSON");
-		goto request_serialize_error;
-	}
-
-	CURL * curl = curl_easy_init();
-
-	if (!curl)
-	{
-		log_error("Failed to initialize cURL");
-		goto curl_init_error;
-	}
-
-	curl_easy_setopt(curl, CURLOPT_URL, STREAM_URL);
-	curl_easy_setopt(curl, CURLOPT_POSTFIELDS, request_body);
-
-	struct curl_slist *headers =
-		caffeine_authenticated_headers(CONTENT_TYPE_JSON, creds);
-	curl_easy_setopt(curl, CURLOPT_HTTPHEADER, headers);
-
-	struct dstr response_str;
-	dstr_init(&response_str);
-
-	curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION,
-		caffeine_curl_write_callback);
-	curl_easy_setopt(curl, CURLOPT_WRITEDATA, (void*)&response_str);
-
-	char curl_error[CURL_ERROR_SIZE];
-	curl_easy_setopt(curl, CURLOPT_ERRORBUFFER, curl_error);
-
-	CURLcode res = curl_easy_perform(curl);
-	if (res != CURLE_OK) {
-		log_error("HTTP failure starting stream: [%d] %s",
-			res, curl_error);
-		goto request_error;
-	}
-
-	long response_code;
-	curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &response_code);
-
-	json_error_t json_error;
-	json_t * response_json = json_loads(response_str.array, 0, &json_error);
-	if (!response_json) {
-		log_error("Failed to parse start stream response: %s",
-			json_error.text);
-		goto json_failed_error;
-	}
-	char const *error_text = NULL;
-	int error_result = json_unpack(response_json, "{s:[s!]}",
-		"_errors", &error_text);
-	if (error_result == 0) {
-		log_error("Error starting stream: %s", error_text);
-		goto json_parsed_error;
-	}
-
-	char const *stream_id = NULL;
-	char const *sdp_answer = NULL;
-	char const *signed_payload = NULL;
-	int success_result = json_unpack_ex(response_json, &json_error, 0,
-		"{s:s,s:s,s:s}",
-		"id", &stream_id,
-		"answer", &sdp_answer,
-		"signed_payload", &signed_payload);
-
-	if (success_result != 0) {
-		log_error("Failed to extract response info: [%s]",
-			json_error.text);
-		goto json_parsed_error;
-	}
-
-	response = bzalloc(sizeof(struct caffeine_stream_info));
-	response->stream_id = bstrdup(stream_id);
-	response->sdp_answer = bstrdup(sdp_answer);
-	response->signed_payload = bstrdup(signed_payload);
-
-	log_debug("Stream started");
-
-json_parsed_error:
-	json_decref(response_json);
-json_failed_error:
-request_error:
-	dstr_free(&response_str);
-	curl_slist_free_all(headers);
-	curl_easy_cleanup(curl);
-curl_init_error:
-	free(request_body);
-request_serialize_error:
-	json_decref(request_json);
-request_json_error:
-
-	return response;
-}
-
-struct caffeine_stream_info * caffeine_start_stream(
-	char const * stage_id,
-	char const * sdp_offer,
-	struct caffeine_credentials * creds)
-{
-	retry_request(void*,
-		do_caffeine_start_stream(stage_id, sdp_offer, creds));
-}
-
-void caffeine_free_stream_info(struct caffeine_stream_info ** stream_info)
-{
-	trace();
-	if (!stream_info || !*stream_info)
-		return;
-
-	bfree((*stream_info)->stream_id);
-	bfree((*stream_info)->sdp_answer);
-	bfree((*stream_info)->signed_payload);
-	*stream_info = NULL;
 }
 
 static struct caffeine_games * do_caffeine_get_supported_games()
@@ -928,8 +826,8 @@ void caffeine_free_game_list(struct caffeine_games ** games)
 static bool do_caffeine_trickle_candidates(
 	caff_ice_candidates candidates,
 	size_t num_candidates,
-	struct caffeine_credentials * creds,
-	struct caffeine_stream_info const * stream_info)
+	char const * stream_url,
+	struct caffeine_credentials * creds)
 {
 	trace();
 	json_t * ice_candidates = json_array();
@@ -943,9 +841,8 @@ static bool do_caffeine_trickle_candidates(
 	}
 
 	json_t * request_json = json_pack(
-		"{s:o,s:s}",
-		"ice_candidates", ice_candidates,
-		"signed_payload", stream_info->signed_payload);
+		"{s:o}",
+		"ice_candidates", ice_candidates);
 
 	bool response = false;
 
@@ -970,24 +867,13 @@ static bool do_caffeine_trickle_candidates(
 		goto curl_init_error;
 	}
 
-	struct dstr url_str;
-	dstr_init(&url_str);
-	dstr_printf(&url_str, TRICKLE_URL_F, stream_info->stream_id);
-
-	curl_easy_setopt(curl, CURLOPT_URL, url_str.array);
+	curl_easy_setopt(curl, CURLOPT_URL, stream_url);
 	curl_easy_setopt(curl, CURLOPT_POSTFIELDS, request_body);
 	curl_easy_setopt(curl, CURLOPT_CUSTOMREQUEST, "PUT");
 
 	struct curl_slist *headers =
 		caffeine_authenticated_headers(CONTENT_TYPE_JSON, creds);
 	curl_easy_setopt(curl, CURLOPT_HTTPHEADER, headers);
-
-	struct dstr response_str;
-	dstr_init(&response_str);
-
-	curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION,
-		caffeine_curl_write_callback);
-	curl_easy_setopt(curl, CURLOPT_WRITEDATA, (void*)&response_str);
 
 	char curl_error[CURL_ERROR_SIZE];
 	curl_easy_setopt(curl, CURLOPT_ERRORBUFFER, curl_error);
@@ -1002,47 +888,30 @@ static bool do_caffeine_trickle_candidates(
 	long response_code;
 	curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &response_code);
 
-	json_error_t json_error;
-	json_t * response_json = json_loads(response_str.array, 0, &json_error);
-	if (!response_json) {
-		log_error("Failed to parse ICE response: %s",
-			json_error.text);
-		goto json_failed_error;
-	}
-	char const *error_text = NULL;
-	int error_result = json_unpack(response_json, "{s:[s!]}",
-		"_errors", &error_text);
-	if (error_result == 0) {
-		log_error("Error negotiating ICE: %s", error_text);
-		goto json_parsed_error;
-	}
-
-	char const *stream_id = NULL;
-	char const *stage_id = NULL;
-	char const *new_signed_payload = NULL;
-	int success_result = json_unpack_ex(response_json, &json_error, 0,
-		"{s:s,s:s,s:s}",
-		"id", &stream_id,
-		"stage_id", &stage_id,
-		"signed_payload", &new_signed_payload);
-
-	if (success_result != 0) {
-		log_error("Failed to extract response info: [%s]",
-			json_error.text);
-		goto json_parsed_error;
+	switch (response_code) {
+		case 200:
+			response = true;
+			break;
+		case 401:
+			log_info("Unauthorized - refreshing credentials");
+			if (refresh_credentials(creds)) {
+				response = do_caffeine_trickle_candidates(
+					candidates, num_candidates, stream_url, creds);
+			}
+			break;
+		default:
+			break;
 	}
 
-	response = true;
-	log_debug("ICE candidates trickled");
+	if (response) {
+		log_debug("ICE candidates trickled");
+	} else {
+		log_error("Error negotiating ICE candidates");
+	}
 
-json_parsed_error:
-	json_decref(response_json);
-json_failed_error:
 request_error:
-	dstr_free(&response_str);
 	curl_slist_free_all(headers);
 	curl_easy_cleanup(curl);
-	dstr_free(&url_str);
 curl_init_error:
 	free(request_body);
 request_serialize_error:
@@ -1055,74 +924,23 @@ request_json_error:
 bool caffeine_trickle_candidates(
 	caff_ice_candidates candidates,
 	size_t num_candidates,
-	struct caffeine_credentials * creds,
-	struct caffeine_stream_info const * stream_info)
+	char const * stream_url,
+	struct caffeine_credentials * creds)
 {
 	retry_request(bool,
 		do_caffeine_trickle_candidates(candidates, num_candidates,
-						creds, stream_info));
+		stream_url, creds));
 }
 
-static bool do_refresh_credentials(struct caffeine_credentials * creds)
+static struct caffeine_heartbeat_response * do_caffeine_heartbeat_stream(
+	  char const * stream_url,
+	  struct caffeine_credentials * creds)
 {
 	trace();
-	char * refresh_token = NULL;
-	pthread_mutex_lock(&creds->mutex);
-	refresh_token = bstrdup(creds->refresh_token);
-	pthread_mutex_unlock(&creds->mutex);
 
-	struct caffeine_credentials * new_creds =
-		caffeine_refresh_auth(refresh_token);
-
-	if (!new_creds)
-		return false;
-
-#define swap(field) do { \
-			void * temp = creds->field; \
-			creds->field = new_creds->field; \
-			new_creds->field = temp; } while (false)
-
-	pthread_mutex_lock(&creds->mutex);
-	swap(access_token);
-	swap(caid);
-	swap(refresh_token);
-	swap(credential);
-	pthread_mutex_unlock(&creds->mutex);
-
-#undef swap
-
-	caffeine_free_credentials(&new_creds);
-	return true;
-}
-
-bool refresh_credentials(struct caffeine_credentials * creds)
-{
-	retry_request(bool, do_refresh_credentials(creds));
-}
-
-bool send_heartbeat(
-	char const * stage_id,
-	char const * signed_payload,
-	struct caffeine_credentials * creds)
-{
-	trace();
-	bool result = false;
-
-	json_t * request_json =
-		json_pack("{s:s}", "signed_payload", signed_payload);
-
-	if (!request_json)
-	{
-		log_error("Failed to create request JSON");
-		goto request_json_error;
-	}
-
+	json_t * request_json = json_object();
 	char * request_body = json_dumps(request_json, 0);
-	if (!request_body)
-	{
-		log_error("Failed to serialize request JSON");
-		goto request_serialize_error;
-	}
+	struct caffeine_heartbeat_response * response = NULL;
 
 	CURL * curl = curl_easy_init();
 
@@ -1132,12 +950,13 @@ bool send_heartbeat(
 		goto curl_init_error;
 	}
 
-	struct dstr url_str;
-	dstr_init(&url_str);
-	dstr_printf(&url_str, HEARTBEAT_URL_F, stage_id);
+	struct dstr url;
+	dstr_init(&url);
+	dstr_printf(&url, STREAM_HEARTBEAT_URL_F, stream_url);
 
-	curl_easy_setopt(curl, CURLOPT_URL, url_str.array);
+	curl_easy_setopt(curl, CURLOPT_URL, url.array);
 	curl_easy_setopt(curl, CURLOPT_POSTFIELDS, request_body);
+	curl_easy_setopt(curl, CURLOPT_CUSTOMREQUEST, "POST");
 
 	struct curl_slist *headers =
 		caffeine_authenticated_headers(CONTENT_TYPE_JSON, creds);
@@ -1155,63 +974,83 @@ bool send_heartbeat(
 
 	CURLcode res = curl_easy_perform(curl);
 	if (res != CURLE_OK) {
-		log_error("HTTP failure going live: [%d] %s",
-			res, curl_error);
+		log_error("HTTP failure hearbeating stream: [%d] %s",
+				  res, curl_error);
 		goto request_error;
 	}
 
 	long response_code;
 	curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &response_code);
 
-	/* TODO: implement this more generally (along with retries) */
 	if (response_code == 401) {
 		log_info("Unauthorized - refreshing credentials");
-		refresh_credentials(creds);
-		result = send_heartbeat(stage_id, signed_payload, creds);
+		if (refresh_credentials(creds)) {
+			response = do_caffeine_heartbeat_stream(stream_url, creds);
+		}
 		goto auth_refresh;
 	}
 
-	log_debug("Http response code [%ld]", response_code);
+	if (response_code != 200) {
+		log_error("Error heartbeating stream: %ld", response_code);
+		goto request_error;
+	}
 
 	json_error_t json_error;
 	json_t * response_json = json_loads(response_str.array, 0, &json_error);
 	if (!response_json) {
-		log_error("Failed to parse heartbeat response: %s",
-			json_error.text);
-		goto json_failed_error;
-	}
-	char const *error_text = NULL;
-	int error_result = json_unpack(response_json, "{s:[s!]}",
-		"_errors", &error_text);
-	if (error_result == 0) {
-		log_error("Error sending heartbeat: %s", error_text);
+		log_error("Failed to parse refresh response: %s",
+				  json_error.text);
 		goto json_parsed_error;
 	}
 
-	if (response_code / 100 == 2) {
-		log_debug("Heartbeat sent");
-		result = true;
-	}
+
+	char * connection_quality = NULL;
+	json_unpack(
+		response_json, "{s?s}",
+		"connection_quality", &connection_quality);
+
+	response = bzalloc(sizeof(struct caffeine_heartbeat_response));
+	response->connection_quality = bstrdup(connection_quality);
+
+	log_debug("Stream heartbeat succeeded");
 
 json_parsed_error:
 	json_decref(response_json);
-json_failed_error:
 request_error:
 auth_refresh:
 	dstr_free(&response_str);
+	dstr_free(&url);
 	curl_slist_free_all(headers);
 	curl_easy_cleanup(curl);
-	dstr_free(&url_str);
 curl_init_error:
 	free(request_body);
-request_serialize_error:
 	json_decref(request_json);
-request_json_error:
 
-	return result;
+	return response;
 }
 
-static struct dstr make_title(char const * title, enum caffeine_rating rating)
+struct caffeine_heartbeat_response * caffeine_heartbeat_stream(
+	char const * stream_url,
+	struct caffeine_credentials * creds)
+{
+	retry_request(
+		struct caffeine_heartbeat_response *,
+		do_caffeine_heartbeat_stream(stream_url, creds));
+}
+
+void caffeine_free_heartbeat_response(
+	struct caffeine_heartbeat_response ** response)
+{
+	if (!response || !*response) {
+		return;
+	}
+
+	bfree((*response)->connection_quality);
+	bfree(*response);
+	*response = NULL;
+}
+
+char * caffeine_annotate_title(char const * title, enum caffeine_rating rating)
 {
 	static const size_t MAX_TITLE_LENGTH = 60;
 	static char const * rating_strings[] = { "", "[17+] " };
@@ -1224,180 +1063,7 @@ static struct dstr make_title(char const * title, enum caffeine_rating rating)
 	dstr_printf(&final_title, "%s%s", rating_strings[rating], title);
 	dstr_resize(&final_title, MAX_TITLE_LENGTH);
 
-	return final_title;
-}
-
-static struct caffeine_stage_response do_set_stage_live(
-	bool is_live,
-	char const * session_id,
-	char const * stage_id,
-	char const * stream_id,
-	char const * title,
-	enum caffeine_rating rating,
-	char const * game_id,
-	struct caffeine_credentials * creds)
-{
-	trace();
-	json_t * stream_json = json_pack("{s:s,s:s,s:s,s:{s:b,s:b}}",
-		"id", stream_id,
-		"label", "game",
-		"type", "primary",
-		"capabilities",
-		"audio", 1,
-		"video", 1);
-
-	struct caffeine_stage_response result = { 0 };
-
-	if (!stream_json)
-		return result;
-
-	struct dstr final_title = make_title(title, rating);
-	json_t * payload_json = json_pack("{s:s,s:s,s:s,s:[o],s:s}",
-		"state", is_live ? "ONLINE" : "OFFLINE",
-		"title", final_title.array,
-		"game_id", game_id,
-		"streams", stream_json,
-		"host_connection_quality", "GOOD");
-	dstr_free(&final_title);
-
-	if (!payload_json)
-	{
-		log_error("Failed to create request JSON");
-		json_decref(stream_json);
-		return result;
-	}
-
-	char const * request_type = "POST";
-	if (session_id) {
-		json_object_set_new(payload_json,
-			"session_id", json_string(session_id));
-		request_type = "PUT";
-	}
-
-	json_t * request_json = json_pack("{s:o}", "v2", payload_json);
-	if (!request_json)
-	{
-		log_error("Failed to create request JSON");
-		json_decref(payload_json);
-		return result;
-	}
-
-	char * request_body = json_dumps(request_json, 0);
-	json_decref(request_json);
-	if (!request_body)
-	{
-		log_error("Failed to serialize request JSON");
-		return result;
-	}
-
-	CURL * curl = curl_easy_init();
-	if (!curl)
-	{
-		log_error("Failed to initialize cURL");
-		goto curl_init_error;
-	}
-
-	struct dstr url_str;
-	dstr_init(&url_str);
-	dstr_printf(&url_str, STAGE_STATE_URL_F, stage_id);
-
-	curl_easy_setopt(curl, CURLOPT_URL, url_str.array);
-	curl_easy_setopt(curl, CURLOPT_POSTFIELDS, request_body);
-	curl_easy_setopt(curl, CURLOPT_CUSTOMREQUEST, request_type);
-
-	struct curl_slist *headers =
-		caffeine_authenticated_headers(CONTENT_TYPE_JSON, creds);
-	curl_easy_setopt(curl, CURLOPT_HTTPHEADER, headers);
-
-	struct dstr response_str;
-	dstr_init(&response_str);
-
-	curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION,
-		caffeine_curl_write_callback);
-	curl_easy_setopt(curl, CURLOPT_WRITEDATA, (void*)&response_str);
-
-	char curl_error[CURL_ERROR_SIZE];
-	curl_easy_setopt(curl, CURLOPT_ERRORBUFFER, curl_error);
-
-	CURLcode res = curl_easy_perform(curl);
-	if (res != CURLE_OK) {
-		log_error("HTTP failure going live: [%d] %s",
-			res, curl_error);
-		goto request_error;
-	}
-
-	long response_code;
-	curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &response_code);
-	log_debug("Http response [%ld]", response_code);
-
-	json_error_t json_error;
-	json_t * response_json = json_loads(response_str.array, 0, &json_error);
-	if (!response_json) {
-		log_error("Failed to stage state response: %s",
-			json_error.text);
-		goto json_failed_error;
-	}
-	char const *error_text = NULL;
-	int error_result = json_unpack(response_json, "{s:[s!]}",
-		"_errors", &error_text);
-	if (error_result == 0) {
-		log_error("Error updating stage state: %s", error_text);
-		goto json_parsed_error;
-	}
-
-	result.status_code = response_code;
-	if (session_id) {
-		result.session_id = session_id;
-	}
-	else {
-		char const * new_session_id;
-		if (json_unpack(response_json, "{s:s}",
-			"session_id", &new_session_id) != 0) {
-			goto request_error;
-		}
-		log_debug("got session id %s", new_session_id);
-
-		result.session_id = bstrdup(new_session_id);
-	}
-
-	if (response_code / 100 == 2)
-		log_debug("Stage set %s", (is_live ? "live" : "offline"));
-	else
-		log_warn("Failed to set stage state");
-
-json_parsed_error:
-	json_decref(response_json);
-json_failed_error:
-request_error:
-	dstr_free(&response_str);
-	curl_slist_free_all(headers);
-	curl_easy_cleanup(curl);
-	dstr_free(&url_str);
-curl_init_error:
-	free(request_body);
-
-	return result;
-}
-
-struct caffeine_stage_response set_stage_live(
-	bool is_live,
-	char const * session_id,
-	char const * stage_id,
-	char const * stream_id,
-	char const * title,
-	enum caffeine_rating rating,
-	char const * game_id,
-	struct caffeine_credentials * creds)
-{
-	struct caffeine_stage_response result = { 0 };
-	for (int try_num = 0; try_num < RETRY_MAX; ++try_num) {
-		result = do_set_stage_live(is_live, session_id, stage_id,
-				stream_id, title, rating, game_id, creds);
-		if (result.session_id)
-			break;
-		os_sleep_ms(1000 + 1000 * try_num);
-	}
-	return result;
+	return final_title.array;
 }
 
 void add_text_part(
@@ -1412,10 +1078,8 @@ void add_text_part(
 		CURLFORM_END);
 }
 
-static char * do_create_broadcast(
-	char const * title,
-	enum caffeine_rating rating,
-	char const * game_id,
+static bool do_update_broadcast_screenshot(
+	char const * broadcast_id,
 	uint8_t const * screenshot_data,
 	size_t screenshot_size,
 	struct caffeine_credentials * creds)
@@ -1432,12 +1096,6 @@ static char * do_create_broadcast(
 	struct curl_httppost * post = NULL;
 	struct curl_httppost * last = NULL;
 
-	struct dstr final_title = make_title(title, rating);
-	add_text_part(&post, &last, "broadcast[name]", final_title.array);
-	dstr_free(&final_title);
-
-	add_text_part(&post, &last, "broadcast[state]", "ONLINE");
-	add_text_part(&post, &last, "broadcast[game_id]", game_id);
 	if (screenshot_data) {
 		curl_formadd(&post, &last,
 			CURLFORM_COPYNAME, "broadcast[game_image]",
@@ -1449,124 +1107,7 @@ static char * do_create_broadcast(
 	}
 
 	curl_easy_setopt(curl, CURLOPT_HTTPPOST, post);
-
-	curl_easy_setopt(curl, CURLOPT_URL, BROADCAST_URL);
-
-	struct curl_slist *headers =
-		caffeine_authenticated_headers(CONTENT_TYPE_FORM, creds);
-	curl_easy_setopt(curl, CURLOPT_HTTPHEADER, headers);
-
-	struct dstr response_str;
-	dstr_init(&response_str);
-
-	curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION,
-		caffeine_curl_write_callback);
-	curl_easy_setopt(curl, CURLOPT_WRITEDATA, (void*)&response_str);
-
-	char curl_error[CURL_ERROR_SIZE];
-	curl_easy_setopt(curl, CURLOPT_ERRORBUFFER, curl_error);
-
-	char * result = NULL;
-
-	CURLcode res = curl_easy_perform(curl);
-	if (res != CURLE_OK) {
-		log_error("HTTP failure creating broadcast: [%d] %s",
-			res, curl_error);
-		goto request_error;
-	}
-
-	long response_code;
-	curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &response_code);
-
-	log_debug("Http response code [%ld]", response_code);
-
-	json_error_t json_error;
-	json_t * response_json = json_loads(response_str.array, 0, &json_error);
-	if (!response_json) {
-		log_error("Failed to create broadcast: %s",
-			json_error.text);
-		goto json_failed_error;
-	}
-	char const *error_text = NULL;
-	int error_result = json_unpack(response_json, "{s:[s!]}",
-		"_errors", &error_text);
-	if (error_result == 0) {
-		log_error("Error creating broadcast: %s", error_text);
-		goto json_parsed_error;
-	}
-
-	if (response_code / 100 != 2) {
-		log_error("Failed to create broadcast");
-		goto http_status_error;
-	}
-
-	char const * broadcast_id;
-	int success_result = json_unpack(response_json, "{s:{s:s}}",
-		"broadcast", "id", &broadcast_id);
-
-	if (success_result == 0) {
-		result = bstrdup(broadcast_id);
-	}
-	else {
-		log_error("Failed to extract broadcast id");
-	}
-
-http_status_error:
-json_parsed_error:
-	json_decref(response_json);
-json_failed_error:
-request_error:
-	dstr_free(&response_str);
-	curl_slist_free_all(headers);
-	curl_formfree(post);
-	curl_easy_cleanup(curl);
-
-	return result;
-}
-
-char * create_broadcast(
-	char const * title,
-	enum caffeine_rating rating,
-	char const * game_id,
-	uint8_t const * screenshot_data,
-	size_t screenshot_size,
-	struct caffeine_credentials * creds)
-{
-	retry_request(char*,
-		do_create_broadcast(title, rating, game_id, screenshot_data,
-				screenshot_size, creds));
-}
-
-static bool do_update_broadcast(
-	char const * broadcast_id,
-	bool is_online,
-	char const * title,
-	enum caffeine_rating rating,
-	char const * game_id,
-	struct caffeine_credentials * creds)
-{
-	trace();
-	CURL * curl = curl_easy_init();
-
-	if (!curl)
-	{
-		log_error("Failed to initialize cURL");
-		return false;
-	}
-
-	struct curl_httppost * post = NULL;
-	struct curl_httppost * last = NULL;
-
-	struct dstr final_title = make_title(title, rating);
-	add_text_part(&post, &last, "broadcast[name]", final_title.array);
-	dstr_free(&final_title);
-
-	add_text_part(&post, &last, "broadcast[state]",
-		is_online ? "ONLINE" : "OFFLINE");
-	add_text_part(&post, &last, "broadcast[game_id]", game_id);
-
-	curl_easy_setopt(curl, CURLOPT_HTTPPOST, post);
-	curl_easy_setopt(curl, CURLOPT_CUSTOMREQUEST, "PATCH");
+	curl_easy_setopt(curl, CURLOPT_CUSTOMREQUEST, "PUT");
 
 	struct dstr url;
 	dstr_init(&url);
@@ -1577,13 +1118,6 @@ static bool do_update_broadcast(
 		caffeine_authenticated_headers(CONTENT_TYPE_FORM, creds);
 	curl_easy_setopt(curl, CURLOPT_HTTPHEADER, headers);
 
-	struct dstr response_str;
-	dstr_init(&response_str);
-
-	curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION,
-		caffeine_curl_write_callback);
-	curl_easy_setopt(curl, CURLOPT_WRITEDATA, (void*)&response_str);
-
 	char curl_error[CURL_ERROR_SIZE];
 	curl_easy_setopt(curl, CURLOPT_ERRORBUFFER, curl_error);
 
@@ -1591,7 +1125,7 @@ static bool do_update_broadcast(
 
 	CURLcode res = curl_easy_perform(curl);
 	if (res != CURLE_OK) {
-		log_error("HTTP failure ending broadcast: [%d] %s",
+		log_error("HTTP failure updating broadcast screenshot: [%d] %s",
 			res, curl_error);
 		goto request_error;
 	}
@@ -1601,33 +1135,13 @@ static bool do_update_broadcast(
 
 	log_debug("Http response code [%ld]", response_code);
 
-	json_error_t json_error;
-	json_t * response_json = json_loads(response_str.array, 0, &json_error);
-	if (!response_json) {
-		log_error("Failed to end broadcast: %s",
-			json_error.text);
-		goto json_failed_error;
-	}
-	char const *error_text = NULL;
-	int error_result = json_unpack(response_json, "{s:[s!]}",
-		"_errors", &error_text);
-	if (error_result == 0) {
-		log_error("Error ending broadcast: %s", error_text);
-		goto json_parsed_error;
+	result = response_code / 100 == 2;
+
+	if (!result) {
+		log_error("Failed to update broadcast screenshot");
 	}
 
-	if (response_code / 100 == 2) {
-		result = true;
-	}
-	else {
-		log_error("Failed to end broadcast");
-	}
-
-json_parsed_error:
-	json_decref(response_json);
-json_failed_error:
 request_error:
-	dstr_free(&response_str);
 	curl_slist_free_all(headers);
 	dstr_free(&url);
 	curl_formfree(post);
@@ -1636,14 +1150,552 @@ request_error:
 	return result;
 }
 
-bool update_broadcast(
+bool caffeine_update_broadcast_screenshot(
 	char const * broadcast_id,
-	bool is_online,
-	char const * title,
-	enum caffeine_rating rating,
-	char const * game_id,
+	uint8_t const * screenshot_data,
+	size_t screenshot_size,
 	struct caffeine_credentials * creds)
 {
-	retry_request(bool, do_update_broadcast(broadcast_id, is_online, title,
-						rating, game_id, creds));
+	if (!broadcast_id) {
+		log_error("Passed in NULL broadcast_id");
+		return false;
+	}
+
+	retry_request(bool,
+		do_update_broadcast_screenshot(
+				broadcast_id,
+				screenshot_data,
+				screenshot_size,
+				creds));
+}
+
+static void caffeine_free_feed_contents(struct caffeine_feed * feed)
+{
+    if (!feed) {
+        return;
+    }
+
+    bfree(feed->id);
+    bfree(feed->client_id);
+    bfree(feed->role);
+    bfree(feed->description);
+    bfree(feed->source_connection_quality);
+    bfree(feed->content.id);
+    bfree(feed->content.type);
+    bfree(feed->stream.id);
+    bfree(feed->stream.source_id);
+    bfree(feed->stream.url);
+    bfree(feed->stream.sdp_offer);
+    bfree(feed->stream.sdp_answer);
+}
+
+struct caffeine_feed * caffeine_get_stage_feed(struct caffeine_stage * stage, char const * id)
+{
+	if (!stage || !id) {
+		return NULL;
+	}
+
+	for (size_t i = 0; i < stage->num_feeds; ++i) {
+		struct caffeine_feed * feed = &stage->feeds[i];
+		if (strcmp(id, feed->id) == 0) {
+			return feed;
+		}
+	}
+
+	return NULL;
+}
+
+static void caffeine_copy_feed_contents(
+	struct caffeine_feed const * from, struct caffeine_feed * to)
+{
+	to->id = bstrdup(from->id);
+	to->client_id = bstrdup(from->client_id);
+	to->role = bstrdup(from->role);
+	to->description = bstrdup(from->description);
+	to->source_connection_quality = bstrdup(from->source_connection_quality);
+	to->volume = from->volume;
+	to->capabilities = from->capabilities;
+	to->content.id = bstrdup(from->content.id);
+	to->content.type = bstrdup(from->content.type);
+	to->stream.id = bstrdup(from->stream.id);
+	to->stream.source_id = bstrdup(from->stream.source_id);
+	to->stream.url = bstrdup(from->stream.url);
+	to->stream.sdp_offer = bstrdup(from->stream.sdp_offer);
+	to->stream.sdp_answer = bstrdup(from->stream.sdp_answer);
+}
+
+
+void caffeine_set_stage_feed(struct caffeine_stage * stage, struct caffeine_feed const * feed)
+{
+	if (!stage || !feed) {
+		return;
+	}
+
+	caffeine_clear_stage_feeds(stage);
+
+	stage->feeds = bmalloc(sizeof(struct caffeine_feed));
+	caffeine_copy_feed_contents(feed, stage->feeds);
+	stage->num_feeds = 1;
+}
+
+void caffeine_clear_stage_feeds(struct caffeine_stage * stage)
+{
+	if (!stage || !stage->feeds) {
+		return;
+	}
+
+	for (size_t i = 0; i < stage->num_feeds; ++i) {
+		caffeine_free_feed_contents(&stage->feeds[i]);
+	}
+
+	bfree(stage->feeds);
+	stage->feeds = NULL;
+	stage->num_feeds = 0;
+}
+
+void caffeine_free_stage(struct caffeine_stage ** stage)
+{
+	if (!stage || !*stage) {
+		return;
+	}
+
+	bfree((*stage)->id);
+    	bfree((*stage)->username);
+    	bfree((*stage)->title);
+    	bfree((*stage)->broadcast_id);
+	caffeine_clear_stage_feeds(*stage);
+    	bfree(*stage);
+    	*stage = NULL;
+}
+
+struct caffeine_stage_request * caffeine_copy_stage_request(
+    struct caffeine_stage_request const * request)
+{
+	if (!request) {
+		return NULL;
+	}
+
+	struct caffeine_stage_request * copy =
+		bzalloc(sizeof(struct caffeine_stage_request));
+	copy->username = bstrdup(request->username);
+	copy->client_id = bstrdup(request->client_id);
+	copy->cursor = bstrdup(request->cursor);
+
+	struct caffeine_stage * stage = request->stage;
+	if (!stage) {
+		return copy;
+	}
+
+	struct caffeine_stage * stage_copy = bzalloc(sizeof(struct caffeine_stage));
+	stage_copy->id = bstrdup(stage->id);
+	stage_copy->username = bstrdup(stage->username);
+	stage_copy->title = bstrdup(stage->title);
+	stage_copy->broadcast_id = bstrdup(stage->broadcast_id);
+	stage_copy->upsert_broadcast = stage->upsert_broadcast;
+	stage_copy->live = stage->live;
+	stage_copy->num_feeds = stage->num_feeds;
+
+	if (stage_copy->num_feeds > 0) {
+		stage_copy->feeds
+	    		= bmalloc(sizeof(struct caffeine_feed) * stage_copy->num_feeds);
+	}
+
+	for (size_t i = 0; i < stage_copy->num_feeds; ++i) {
+		caffeine_copy_feed_contents(&stage->feeds[i], &stage_copy->feeds[i]);
+	}
+
+	copy->stage = stage_copy;
+
+	return copy;
+}
+
+void caffeine_free_stage_request(struct caffeine_stage_request ** request)
+{
+	if (!request || !*request) {
+		return;
+	}
+
+	bfree((*request)->username);
+	bfree((*request)->client_id);
+	bfree((*request)->cursor);
+	caffeine_free_stage(&(*request)->stage);
+	bfree(*request);
+	*request = NULL;
+}
+
+void caffeine_free_stage_response(struct caffeine_stage_response ** response)
+{
+	if (!response || !*response) {
+		return;
+	}
+
+	bfree((*response)->cursor);
+    	caffeine_free_stage(&(*response)->stage);
+	bfree(*response);
+
+	*response = NULL;
+}
+
+void caffeine_free_failure(struct caffeine_failure_response ** failure)
+{
+	if (!failure || !*failure) {
+		return;
+	}
+
+	bfree((*failure)->type);
+	bfree((*failure)->reason);
+	bfree((*failure)->display_message.title);
+	bfree((*failure)->display_message.body);
+	bfree(*failure);
+
+	*failure = NULL;
+}
+
+void caffeine_free_stage_response_result(struct caffeine_stage_response_result ** result)
+{
+	if (!result || !*result) {
+		return;
+	}
+
+	caffeine_free_stage_response(&(*result)->response);
+	caffeine_free_failure(&(*result)->failure);
+	bfree(*result);
+
+	*result = NULL;
+}
+
+static json_t * caffeine_serialize_stage_request(struct caffeine_stage_request request)
+{
+	json_t * request_json = json_object();
+	json_object_set_new(request_json, "client",
+		json_pack("{s:s,s:o}",
+			"id", request.client_id,
+			"headless", json_true()));
+
+	if (request.cursor) {
+		json_object_set_new(request_json, "cursor", json_string(request.cursor));
+	}
+
+	if (request.stage) {
+	json_t * stage = json_pack(
+		"{s:s,s:s,s:s?,s:s?,s:o,s:o}",
+		"id", request.stage->id,
+		"username", request.stage->username,
+		"title", request.stage->title,
+		"broadcast_id", request.stage->broadcast_id,
+		"upsert_broadcast", json_boolean(request.stage->upsert_broadcast),
+		"live", json_boolean(request.stage->live));
+
+	json_t * feeds = json_object();
+
+	for (size_t i = 0; i < request.stage->num_feeds; ++i) {
+	    	struct caffeine_feed * feed = &request.stage->feeds[i];
+	    	json_t * json_feed = json_pack(
+			"{s:s,s:s?,s:s?,s:s?,s:s?,s:f,s:{s:o,s:o}}",
+			"id", feed->id,
+			"client_id", feed->client_id,
+			"role", feed->role,
+			"description", feed->description,
+			"source_connection_quality", feed->source_connection_quality,
+			"volume", feed->volume,
+			"capabilities",
+				"video", json_boolean(feed->capabilities.video),
+				"audio", json_boolean(feed->capabilities.audio));
+
+		if (feed->content.id && feed->content.type) {
+			json_object_set_new(json_feed, "content", json_pack(
+				"{s:s,s:s}", "id", feed->content.id, "type", feed->content.type));
+		}
+
+		if (feed->stream.sdp_offer || feed->stream.id) {
+			json_object_set_new(json_feed, "stream", json_pack(
+				"{s:s?,s:s?,s:s?,s:s?,s:s?}",
+				"id", feed->stream.id,
+				"source_id", feed->stream.source_id,
+				"url", feed->stream.url,
+				"sdp_offer", feed->stream.sdp_offer,
+				"sdp_answer", feed->stream.sdp_answer));
+		}
+
+		json_object_set_new(feeds, feed->id, json_feed);
+	}
+
+		json_object_set_new(stage, "feeds", feeds);
+		json_object_set_new(request_json, "payload", stage);
+	}
+
+	return request_json;
+}
+
+static struct caffeine_stage_response * caffeine_deserialize_stage_response(
+	json_t * json)
+{
+	struct caffeine_stage_response * response = NULL;
+	struct caffeine_stage * stage = NULL;
+    	char * cursor = NULL;
+    	double retry_in = 0.0;
+    	if (json_unpack(
+        	json,
+        	"{s:s, s:F}",
+        	"cursor",
+        	&cursor,
+        	"retry_in",
+        	&retry_in) != 0)
+	{
+        	log_error("Failed to parse stage response cursor and retry_in");
+        	goto json_parsed_error;
+    	}
+
+    	json_t * payload = json_object_get(json, "payload");
+    	if (!payload || payload->type != JSON_OBJECT) {
+        	log_error("Response did not contain a payload");
+        	goto json_parsed_error;
+    	}
+
+	stage = bzalloc(sizeof(struct caffeine_stage));
+
+	char * id = NULL;
+	char * username = NULL;
+	char * title = NULL;
+	char * broadcast_id = NULL;
+	int upsert_broadcast = 0;
+	int live = 0;
+
+	if (json_unpack(payload,
+		"{s:s,s:s,s:s,s?s,s?b,s:b}",
+		"id", &id,
+		"username", &username,
+		"title", &title,
+		"broadcast_id", &broadcast_id,
+		"upsert_broadcast", &upsert_broadcast,
+		"live", &live) != 0)
+	{
+		log_error("Failed to parse stage");
+		goto json_parsed_error;
+    	}
+
+	stage->id = bstrdup(id);
+	stage->username = bstrdup(username);
+	stage->title = bstrdup(title);
+	stage->broadcast_id = bstrdup(broadcast_id);
+	stage->upsert_broadcast = upsert_broadcast;
+	stage->live = live;
+
+	json_t * json_feeds = json_object_get(payload, "feeds");
+
+	if (json_is_object(json_feeds)) {
+		stage->num_feeds = json_object_size(json_feeds);
+		if (stage->num_feeds > 0) {
+			stage->feeds =
+				bzalloc(sizeof(struct caffeine_feed) * stage->num_feeds);
+			struct caffeine_feed * feed_pointer = stage->feeds;
+            		const char *feed_key;
+            		json_t *feed_value;
+
+			json_object_foreach(json_feeds, feed_key, feed_value) {
+                		struct caffeine_feed feed = { NULL };
+				int video = 1;
+				int audio = 1;
+
+				int result = json_unpack(
+					feed_value,
+					"{s:s,s?s,s?s,s?s,s?s,s?F,s?{s:b,s:b},s?{s:s,s:s},s?{s?s,s?s,s?s,s?s,s?s}}",
+					"id", &feed.id,
+					"client_id", &feed.client_id,
+					"role", &feed.role,
+					"description", &feed.description,
+					"source_connection_quality",
+						&feed.source_connection_quality,
+					"volume", &feed.volume,
+					"capabilities",
+						"video", &video,
+						"audio", &audio,
+					"content",
+						"id", &feed.content.id,
+						"type", &feed.content.type,
+					"stream",
+						"id", &feed.stream.id,
+						"source_id", &feed.stream.source_id,
+						"url", &feed.stream.url,
+						"sdp_offer", &feed.stream.sdp_offer,
+						"sdp_answer", &feed.stream.sdp_answer);
+
+				if (result != 0) {
+					log_error("Failed to parse feed");
+					goto json_parsed_error;
+				}
+
+                		feed.capabilities.video = video;
+                		feed.capabilities.audio = audio;
+
+				caffeine_copy_feed_contents(&feed, feed_pointer);
+				++feed_pointer;
+			}
+		}
+	}
+
+	response = bzalloc(sizeof(struct caffeine_stage_response));
+	response->cursor = bstrdup(cursor);
+	response->retry_in = retry_in;
+	response->stage = stage;
+	stage = NULL;
+
+json_parsed_error:
+	caffeine_free_stage(&stage);
+
+    	return response;
+}
+
+static struct caffeine_stage_response_result * do_caffeine_stage_update(
+	struct caffeine_stage_request request,
+	struct caffeine_credentials * creds)
+{
+	trace();
+
+    	if (!request.username) {
+		log_error("Did not set request username");
+        	return NULL;
+    	}
+
+    	json_t * request_json = caffeine_serialize_stage_request(request);
+    	char * request_body = json_dumps(request_json, 0);
+    	json_decref(request_json);
+    	if (!request_body) {
+        	log_error("Failed to serialize request JSON");
+        	return NULL;
+    	}
+
+	struct caffeine_stage_response_result * result = NULL;
+	struct caffeine_stage_response * stage_response = NULL;
+	struct caffeine_failure_response * failure_response = NULL;
+
+    	CURL * curl = curl_easy_init();
+    	if (!curl) {
+        	log_error("Failed to initialize cURL");
+        	goto curl_init_error;
+    	}
+
+	struct dstr url_str;
+	dstr_init(&url_str);
+	dstr_printf(&url_str, STAGE_UPDATE_URL_F, request.username);
+
+	curl_easy_setopt(curl, CURLOPT_URL, url_str.array);
+	curl_easy_setopt(curl, CURLOPT_POSTFIELDS, request_body);
+	curl_easy_setopt(curl, CURLOPT_CUSTOMREQUEST, "PUT");
+
+	struct curl_slist *headers =
+	caffeine_authenticated_headers(CONTENT_TYPE_JSON, creds);
+	curl_easy_setopt(curl, CURLOPT_HTTPHEADER, headers);
+
+	struct dstr response_str;
+	dstr_init(&response_str);
+
+	curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION,
+		     caffeine_curl_write_callback);
+	curl_easy_setopt(curl, CURLOPT_WRITEDATA, (void*)&response_str);
+
+	char curl_error[CURL_ERROR_SIZE];
+	curl_easy_setopt(curl, CURLOPT_ERRORBUFFER, curl_error);
+
+	CURLcode res = curl_easy_perform(curl);
+	if (res != CURLE_OK) {
+		log_error("HTTP failure performing stage update: [%d] %s",
+			res, curl_error);
+		goto request_error;
+	}
+
+    	long response_code;
+    	curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &response_code);
+    	log_debug("Http response [%ld]", response_code);
+
+	if (response_code == 401) {
+		log_info("Unauthorized - refreshing credentials");
+		if (refresh_credentials(creds)) {
+			result = do_caffeine_stage_update(request, creds);
+		}
+		goto auth_refresh;
+	}
+
+	json_error_t json_error;
+	json_t * response_json = json_loads(response_str.array, 0, &json_error);
+	if (!response_json) {
+		log_error("Failed to deserialized stage update response to JSON: %s",
+			  json_error.text);
+		goto json_failed_error;
+	}
+
+	if (response_code == 200) {
+		stage_response = caffeine_deserialize_stage_response(response_json);
+	} else {
+		char * type = NULL;
+		char * reason = NULL;
+		char * display_message_title = NULL;
+		char * display_message_body = NULL;
+
+		if (json_unpack(response_json, "{s?s,s?s,s?{s?s,s:s}}",
+			"type", &type,
+			"reason", &reason,
+			"display_message",
+				"title", &display_message_title,
+				"body", &display_message_body) != 0)
+		{
+			log_error("Failed to unpack failure response");
+			goto json_parsed_error;
+		}
+
+		/*
+		 As of now, the only failure response we want to return and
+		 not retry is `OutOfCapacity`
+		*/
+		if (!type || strcmp(type, "OutOfCapacity") != 0) {
+			goto standard_failure_response;
+		}
+
+		struct caffeine_failure_response failure = {
+			.type = bstrdup(type),
+			.reason = bstrdup(reason),
+			.display_message = {
+				.title = bstrdup(display_message_body),
+				.body = bstrdup(display_message_body)
+			}
+		};
+
+		failure_response = bzalloc(sizeof(struct caffeine_failure_response));
+		*failure_response = failure;
+	}
+
+json_parsed_error:
+standard_failure_response:
+	json_decref(response_json);
+json_failed_error:
+request_error:
+auth_refresh:
+	dstr_free(&response_str);
+	curl_slist_free_all(headers);
+	curl_easy_cleanup(curl);
+	dstr_free(&url_str);
+curl_init_error:
+    	free(request_body);
+
+	if (stage_response || failure_response) {
+		result = bzalloc(sizeof(struct caffeine_stage_response_result));
+
+		if (stage_response) {
+			result->response = stage_response;
+		} else {
+			result->failure = failure_response;
+		}
+
+		return result;
+	}
+
+    	return NULL;
+}
+
+struct caffeine_stage_response_result * caffeine_stage_update(
+	 struct caffeine_stage_request request,
+	 struct caffeine_credentials * creds)
+{
+	retry_request(struct caffeine_stage_response_result *,
+        do_caffeine_stage_update(request, creds));
 }
