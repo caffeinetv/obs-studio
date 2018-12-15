@@ -64,6 +64,8 @@ static void caffeine_service_update(void * data, obs_data_t * settings)
 
 	context->refresh_token =
 		bstrdup(obs_data_get_string(settings, REFRESH_TOKEN_KEY));
+	obs_data_set_default_string(settings, BROADCAST_TITLE_KEY,
+		obs_module_text("DefaultBroadcastTitle"));
 	context->broadcast_title =
 		bstrdup(obs_data_get_string(settings, BROADCAST_TITLE_KEY));
 	context->broadcast_rating =
@@ -222,6 +224,8 @@ static bool signout_clicked(obs_properties_t * props, obs_property_t * prop,
 
 	obs_data_erase(settings, REFRESH_TOKEN_KEY);
 	obs_data_erase(settings, USERNAME_KEY);
+	obs_data_set_string(settings, BROADCAST_TITLE_KEY,
+		obs_module_text("DefaultBroadcastTitle"));
 	signed_out_state(props);
 	return true;
 }
@@ -317,8 +321,7 @@ static bool caffeine_service_initialize(void * data, obs_output_t * output)
 
 	char const * title = obs_data_get_string(settings, BROADCAST_TITLE_KEY);
 	if (strcmp(title, "") == 0) {
-		set_error(output, obs_module_text("ErrorMustSetTitle"));
-		return false;
+		title = obs_module_text("DefaultBroadcastTitle");
 	}
 
 	if (context->creds)
@@ -374,7 +377,10 @@ static void * caffeine_service_query(void * data, int query_id, va_list unused)
 	case CAFFEINE_QUERY_STAGE_ID:
 		return service->user_info->stage_id;
 	case CAFFEINE_QUERY_BROADCAST_TITLE:
-		return service->broadcast_title;
+		if (service->broadcast_title && *service->broadcast_title)
+			return service->broadcast_title;
+		else
+			return obs_module_text("DefaultBroadcastTitle");
 	case CAFFEINE_QUERY_BROADCAST_RATING:
 		return (void*)service->broadcast_rating;
 	default:
