@@ -355,11 +355,11 @@ static void caffeine_stream_failed(void *data, caff_error error)
 	obs_output_signal_stop(context->output, caffeine_to_obs_error(error));
 }
 
-#define OBS_GAME_ID 79
+#define OBS_GAME_ID "79"
 
-static int get_game_id(struct caffeine_games * games)
+static char const * get_game_id(struct caffeine_games * games)
 {
-	int id = OBS_GAME_ID;
+	char const * id = OBS_GAME_ID;
 	char * foreground_process = get_foreground_process_name();
 	if (games && foreground_process) {
 		/* TODO: this is inside out; should have process name at toplevel */
@@ -411,7 +411,7 @@ static void * broadcast_thread(void * data)
 		obs_service_query(service, CAFFEINE_QUERY_BROADCAST_RATING);
 
 	struct caffeine_games * games = caffeine_get_supported_games();
-	int game_id = get_game_id(games);
+	char const * game_id = get_game_id(games);
 
 	char * session_id = set_stage_live(false, NULL, stage_id,
 		stream_id, title, rating, game_id, creds);
@@ -427,8 +427,9 @@ static void * broadcast_thread(void * data)
 	pthread_mutex_unlock(&context->screenshot_mutex);
 
 	char * broadcast_id =
-		create_broadcast(title, rating, context->screenshot.data,
-			context->screenshot.size, creds);
+		create_broadcast(title, rating, game_id,
+			context->screenshot.data, context->screenshot.size,
+			creds);
 	if (broadcast_id == NULL) {
 		caffeine_stream_failed(data, CAFF_ERROR_BROADCAST_FAILED);
 		goto create_broadcast_error;
@@ -456,6 +457,8 @@ static void * broadcast_thread(void * data)
 		game_id = get_game_id(games);
 		set_stage_live(true, session_id, stage_id, stream_id, title,
 				rating, game_id, creds);
+		update_broadcast(broadcast_id, true, title, rating, game_id,
+				creds);
 
 		if (send_heartbeat(stream_id, signed_payload, creds)) {
 			failures = 0;
@@ -474,7 +477,7 @@ static void * broadcast_thread(void * data)
 
 	set_stage_live(false, session_id, stage_id, stream_id, title, rating,
 			game_id, creds);
-	end_broadcast(broadcast_id, title, rating, creds);
+	update_broadcast(broadcast_id, false, title, rating, game_id, creds);
 
 	bfree(broadcast_id);
 create_broadcast_error:
