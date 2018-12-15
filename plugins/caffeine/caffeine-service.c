@@ -64,6 +64,8 @@ static void caffeine_service_update(void * data, obs_data_t * settings)
 
 	context->refresh_token =
 		bstrdup(obs_data_get_string(settings, REFRESH_TOKEN_KEY));
+	obs_data_set_default_string(settings, BROADCAST_TITLE_KEY,
+		obs_module_text("DefaultBroadcastTitle"));
 	context->broadcast_title =
 		bstrdup(obs_data_get_string(settings, BROADCAST_TITLE_KEY));
 	context->broadcast_rating =
