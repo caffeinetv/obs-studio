@@ -208,7 +208,7 @@ bool AutoConfigVideoPage::validatePage()
 	return true;
 }
 
-void AutoConfigStreamPage::PropertiesChanged()
+void AutoConfigStreamPage::StreamSettingsChanged(bool refreshPropertiesView)
 {
 	/* Store current service temporarily */
 	QString qServiceType = "";
@@ -222,17 +222,17 @@ void AutoConfigStreamPage::PropertiesChanged()
 	blog(LOG_INFO, "service: %s", qServiceType.toStdString().c_str());
 
 	/* Reconstruct properties view */
-	streamPropertiesLayout->removeWidget(streamProperties);
-	streamProperties->deleteLater();
-	streamProperties = new OBSPropertiesView(serviceSettings, qServiceType.toStdString().c_str(),
-		(PropertiesReloadCallback)obs_get_service_properties,
-		170);
-	streamProperties->setProperty("changed", QVariant(false));
+	if (refreshPropertiesView) {
+		streamPropertiesLayout->removeWidget(streamProperties);
+		streamProperties->deleteLater();
+		streamProperties = new OBSPropertiesView(serviceSettings, qServiceType.toStdString().c_str(),
+			(PropertiesReloadCallback)obs_get_service_properties, 0);
+		streamProperties->setProperty("changed", QVariant(false));
 
-	QObject::connect(streamProperties, SIGNAL(Changed()),
-		this, SLOT(PropertiesChanged()));
-	streamPropertiesLayout->addWidget(streamProperties);
-
+		QObject::connect(streamProperties, SIGNAL(Changed()),
+			this, SLOT(PropertiesChanged()));
+		streamPropertiesLayout->addWidget(streamProperties);
+	}
 	const char* currentSettings = obs_data_get_json(serviceSettings);
 	blog(LOG_INFO, "%s", currentSettings);
 
@@ -256,7 +256,7 @@ void AutoConfigStreamPage::PropertiesChanged()
 
 	if (wiz->twitchAuto && qService.toStdString().find("Twitch") != std::string::npos)
 		regionBased = false;
-	
+
 	if (custom) {
 		ui->region->setVisible(false);
 	} else {
@@ -268,22 +268,17 @@ void AutoConfigStreamPage::PropertiesChanged()
 	obs_data_clear(wiz->serviceSettings);
 	obs_data_apply(wiz->serviceSettings, serviceSettings);
 
-	/* Refresh available services */
-	/* breaks behavior?
-	const char *type;
-	size_t idx = 0;
-	ui->streamType->blockSignals(true);
-	ui->streamType->clear();
-
-	while (obs_enum_service_types(idx++, &type)) {
-		const char *name = obs_service_get_display_name(type);
-		QString qName = QT_UTF8(name);
-		QString qType = QT_UTF8(type);
-		ui->streamType->addItem(qName, qType);
-	}
-	ui->streamType->blockSignals(false);
-	*/
 	UpdateCompleted();
+}
+
+void AutoConfigStreamPage::SettingsChanged()
+{
+	StreamSettingsChanged(true);
+}
+
+void AutoConfigStreamPage::PropertiesChanged()
+{
+	StreamSettingsChanged(false);
 }
 
 /* ------------------------------------------------------------------------- */
@@ -335,18 +330,18 @@ AutoConfigStreamPage::AutoConfigStreamPage(QWidget *parent)
 	setSubTitle(QTStr("Basic.AutoConfig.StreamPage.SubTitle"));
 
 	connect(ui->streamType, SIGNAL(currentIndexChanged(int)),
-		this, SLOT(PropertiesChanged()));
+		this, SLOT(SettingsChanged()));
 
 	connect(ui->doBandwidthTest, SIGNAL(toggled(bool)),
-		this, SLOT(PropertiesChanged()));
+		this, SLOT(SettingsChanged()));
 	connect(ui->regionUS, SIGNAL(toggled(bool)),
-		this, SLOT(PropertiesChanged()));
+		this, SLOT(SettingsChanged()));
 	connect(ui->regionEU, SIGNAL(toggled(bool)),
-		this, SLOT(PropertiesChanged()));
+		this, SLOT(SettingsChanged()));
 	connect(ui->regionAsia, SIGNAL(toggled(bool)),
-		this, SLOT(PropertiesChanged()));
+		this, SLOT(SettingsChanged()));
 	connect(ui->regionOther, SIGNAL(toggled(bool)),
-		this, SLOT(PropertiesChanged()));
+		this, SLOT(SettingsChanged()));
 }
 
 AutoConfigStreamPage::~AutoConfigStreamPage()

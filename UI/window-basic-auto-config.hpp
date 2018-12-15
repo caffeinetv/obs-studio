@@ -178,6 +178,8 @@ public:
 public slots:
 	void UpdateKeyLink();
 	void UpdateCompleted();
+	void StreamSettingsChanged(bool refreshPropertiesView);
+	void SettingsChanged();
 	void PropertiesChanged();
 };
 
