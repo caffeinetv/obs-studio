@@ -286,8 +286,6 @@ void AutoConfigStreamPage::PropertiesChanged()
 	UpdateCompleted();
 }
 
-
-
 /* ------------------------------------------------------------------------- */
 
 AutoConfigStreamPage::AutoConfigStreamPage(QWidget *parent)
@@ -304,8 +302,7 @@ AutoConfigStreamPage::AutoConfigStreamPage(QWidget *parent)
 	serviceSettings = obs_service_get_settings(service);
 
 	streamProperties = new OBSPropertiesView(serviceSettings, service_type,
-		(PropertiesReloadCallback)obs_get_service_properties,
-		170);
+		(PropertiesReloadCallback)obs_get_service_properties, 0);
 	streamProperties->setProperty("changed", QVariant(false));
 
 	QObject::connect(streamProperties, SIGNAL(Changed()),
@@ -313,6 +310,9 @@ AutoConfigStreamPage::AutoConfigStreamPage(QWidget *parent)
 
 	streamPropertiesLayout->addWidget(streamProperties);
 	ui->formLayout->insertRow(1, streamPropertiesLayout);
+
+	streamPropertiesLayout->setSizeConstraint(QLayout::SetNoConstraint);
+	streamProperties->setSizePolicy(QSizePolicy::Policy::Minimum, QSizePolicy::Policy::MinimumExpanding);
 
 	ui->bitrateLabel->setVisible(false);
 	ui->bitrate->setVisible(false);
