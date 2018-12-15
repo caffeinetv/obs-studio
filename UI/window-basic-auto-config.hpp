@@ -176,7 +176,6 @@ public:
 	virtual bool validatePage() override;
 
 public slots:
-	void UpdateKeyLink();
 	void UpdateCompleted();
 	void StreamSettingsChanged(bool refreshPropertiesView);
 	void SettingsChanged();
