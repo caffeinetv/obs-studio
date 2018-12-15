@@ -17,8 +17,15 @@
 #define API_VERSION STR(LIBOBS_API_MAJOR_VER) "." STR(LIBOBS_API_MINOR_VER)
 
 /* TODO: load these from config? */
-#define API_ENDPOINT       "https://api.caffeine.tv/"
-#define REALTIME_ENDPOINT  "https://realtime.caffeine.tv/"
+#define CAFFEINE_STAGING 1
+#if CAFFEINE_STAGING
+#define CAFFEINE_DOMAIN "staging.caffeine.tv/"
+#else
+#define CAFFEINE_DOMAIN "caffeine.tv/"
+#endif
+
+#define API_ENDPOINT       "https://api." CAFFEINE_DOMAIN
+#define REALTIME_ENDPOINT  "https://realtime." CAFFEINE_DOMAIN
 
 /* TODO: some of these are deprecated */
 #define VERSION_CHECK_URL  API_ENDPOINT  "v1/version-check"
