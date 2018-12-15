@@ -438,44 +438,6 @@ bool AutoConfigStreamPage::validatePage()
 	return true;
 }
 
-void AutoConfigStreamPage::UpdateKeyLink()
-{
-	/*
-	bool custom = ui->streamType->currentIndex() == 1;
-	QString serviceName = ui->service->currentText();
-	bool isYoutube = false;
-
-	if (custom)
-		serviceName = "";
-
-	QString text = QTStr("Basic.AutoConfig.StreamPage.StreamKey");
-	if (serviceName == "Twitch") {
-		text += " <a href=\"https://";
-		text += "www.twitch.tv/broadcast/dashboard/streamkey";
-		text += "\">";
-		text += QTStr("Basic.AutoConfig.StreamPage.StreamKey.LinkToSite");
-		text += "</a>";
-	} else if (serviceName == "YouTube / YouTube Gaming") {
-		text += " <a href=\"https://";
-		text += "www.youtube.com/live_dashboard";
-		text += "\">";
-		text += QTStr("Basic.AutoConfig.StreamPage.StreamKey.LinkToSite");
-		text += "</a>";
-
-		isYoutube = true;
-	}
-
-	if (isYoutube) {
-		ui->doBandwidthTest->setChecked(false);
-		ui->doBandwidthTest->setEnabled(false);
-	} else {
-		ui->doBandwidthTest->setEnabled(true);
-	}
-
-	ui->streamKeyLabel->setText(text);
-	*/
-}
-
 void AutoConfigStreamPage::UpdateCompleted()
 {
 	QString key = obs_data_get_string(serviceSettings, "key");
@@ -486,7 +448,7 @@ void AutoConfigStreamPage::UpdateCompleted()
 		bool custom = qServiceType.toStdString().find("_custom") != std::string::npos;
 		if (custom) {
 			QString server = obs_data_get_string(serviceSettings, "server");
-			ready = !server.isEmpty();//!ui->customServer->text().isEmpty();
+			ready = !server.isEmpty();
 		} else {
 			ready = !wiz->testRegions ||
 				ui->regionUS->isChecked() ||
