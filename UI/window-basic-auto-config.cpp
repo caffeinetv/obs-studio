@@ -208,6 +208,45 @@ bool AutoConfigVideoPage::validatePage()
 	return true;
 }
 
+void AutoConfigStreamPage::UpdateBandwidthTest()
+{
+	QString qServiceType = "";
+	if (ui->streamType->currentIndex() >= 0)
+		qServiceType = (ui->streamType->currentData()).toString();
+
+	QString qService = obs_data_get_string(serviceSettings, "service");
+
+	std::vector<std::string> disabledBandwidthServiceTypes = {
+		"caffeine_service"
+	};
+
+	std::vector<std::string> disabledBandwidthServices = {
+		"Youtube"
+	};
+
+	bool disabledBandwidthTesting = false;
+	for (size_t i = 0; i < disabledBandwidthServiceTypes.size(); i++) {
+		if (qServiceType.toStdString() == disabledBandwidthServiceTypes[i]) {
+			disabledBandwidthTesting = true;
+			break;
+		}
+	}
+
+	for (size_t i = 0; i < disabledBandwidthServices.size(); i++) {
+		if (qService.toStdString().find(disabledBandwidthServices[i]) != std::string::npos) {
+			disabledBandwidthTesting = true;
+			break;
+		}
+	}
+
+	if (disabledBandwidthTesting) {
+		ui->doBandwidthTest->setChecked(false);
+		ui->doBandwidthTest->setEnabled(false);
+	} else {
+		ui->doBandwidthTest->setEnabled(true);
+	}
+}
+
 void AutoConfigStreamPage::StreamSettingsChanged(bool refreshPropertiesView)
 {
 	/* Store current service temporarily */
@@ -223,6 +262,11 @@ void AutoConfigStreamPage::StreamSettingsChanged(bool refreshPropertiesView)
 
 	/* Reconstruct properties view */
 	if (refreshPropertiesView) {
+		OBSData defaults = obs_service_defaults(QT_TO_UTF8(qServiceType));
+		obs_data_clear(serviceSettings);
+		obs_data_apply(serviceSettings, defaults);
+		obs_data_release(defaults);
+
 		streamPropertiesLayout->removeWidget(streamProperties);
 		streamProperties->deleteLater();
 		streamProperties = new OBSPropertiesView(serviceSettings, qServiceType.toStdString().c_str(),
@@ -235,6 +279,8 @@ void AutoConfigStreamPage::StreamSettingsChanged(bool refreshPropertiesView)
 	}
 	const char* currentSettings = obs_data_get_json(serviceSettings);
 	blog(LOG_INFO, "%s", currentSettings);
+
+	UpdateBandwidthTest();
 
 	bool testBandwidth = ui->doBandwidthTest->isChecked();
 
@@ -438,12 +484,84 @@ bool AutoConfigStreamPage::validatePage()
 	return true;
 }
 
+static bool validateRequirements(obs_data_t *settings)
+{
+	obs_data_t *requirementsObj = nullptr;
+	obs_data_type type = OBS_DATA_NULL;
+	obs_data_item_t *item;
+	obs_data_item_t *test_item;
+	const char *json_settings = obs_data_get_json(settings);
+	blog(LOG_INFO, "%s", json_settings);
+
+	for (item = obs_data_first(settings); item; obs_data_item_next(&item)) {
+		obs_data_type item_type = obs_data_item_gettype(item);
+		const char *name = obs_data_item_get_name(item);
+
+		if (!obs_data_item_has_user_value(item))
+			continue;
+
+		if (strcmpi(name, "requirements") == 0) {
+			switch (item_type) {
+			case OBS_DATA_STRING:
+			case OBS_DATA_OBJECT:
+				break;
+			default:
+				return false;
+			}
+			type = item_type;
+			break;
+		}
+	}
+
+	if (type == OBS_DATA_STRING) {
+		const char *name = obs_data_get_string(settings, "requirements");
+		test_item = obs_data_item_byname(settings, name);
+
+		if (!obs_data_item_has_user_value(test_item)) {
+			blog(LOG_INFO, "%s not found", name);
+			obs_data_item_release(&test_item);
+			return false;
+		}
+		blog(LOG_INFO, "%s found", name);
+		obs_data_item_release(&test_item);
+		return true;
+	} else if (type == OBS_DATA_OBJECT) {
+
+	} else {
+		return false;
+	}
+
+	requirementsObj = obs_data_get_obj(settings, "requirements");
+	const char *json = obs_data_get_json(requirementsObj);
+	blog(LOG_INFO, "%s", json);
+	for (item = obs_data_first(requirementsObj); item; obs_data_item_next(&item)) {
+		enum obs_data_type type = obs_data_item_gettype(item);
+		const char *name = obs_data_item_get_name(item);
+		blog(LOG_INFO, "%s required", name);
+		if (!obs_data_item_has_user_value(item))
+			return false;
+
+		test_item = obs_data_item_byname(settings, name);
+
+		if (!obs_data_item_has_user_value(test_item)) {
+			blog(LOG_INFO, "%s not found", name);
+			obs_data_item_release(&test_item);
+			return false;
+		}
+		obs_data_item_release(&test_item);
+		blog(LOG_INFO, "%s found", name);
+	}
+
+	return true;
+}
+
 void AutoConfigStreamPage::UpdateCompleted()
 {
 	QString key = obs_data_get_string(serviceSettings, "key");
+
 	if (key.isEmpty()) {
-		ready = false;
-	} else {
+		ready = validateRequirements(serviceSettings);
+	} else if (key.isEmpty()) {
 		QString qServiceType = ui->streamType->currentData().toString();
 		bool custom = qServiceType.toStdString().find("_custom") != std::string::npos;
 		if (custom) {
@@ -520,6 +638,8 @@ AutoConfig::AutoConfig(QWidget *parent)
 
 	int bitrate = config_get_int(main->Config(), "SimpleOutput", "VBitrate");
 	streamPage->ui->bitrate->setValue(bitrate);
+	streamPage->UpdateBandwidthTest();
+	streamPage->PropertiesChanged();
 
 	streamPage->ui->preferHardware->setChecked(os_get_physical_cores() <= 4);
 
