@@ -8,6 +8,8 @@
 
 #include <obs.hpp>
 
+#include <algorithm>
+
 #include "ui_AutoConfigStartPage.h"
 #include "ui_AutoConfigVideoPage.h"
 #include "ui_AutoConfigStreamPage.h"
@@ -210,41 +212,38 @@ bool AutoConfigVideoPage::validatePage()
 
 void AutoConfigStreamPage::UpdateBandwidthTest()
 {
-	QString qServiceType = "";
-	if (ui->streamType->currentIndex() >= 0)
-		qServiceType = (ui->streamType->currentData()).toString();
-
 	QString qService = obs_data_get_string(serviceSettings, "service");
 
-	std::vector<std::string> disabledBandwidthServiceTypes = {
-		"caffeine_service"
-	};
-
 	std::vector<std::string> disabledBandwidthServices = {
-		"Youtube"
+		"youtube"
 	};
 
-	bool disabledBandwidthTesting = false;
-	for (size_t i = 0; i < disabledBandwidthServiceTypes.size(); i++) {
-		if (qServiceType.toStdString() == disabledBandwidthServiceTypes[i]) {
-			disabledBandwidthTesting = true;
-			break;
+	bool disabledBandwidthTesting =
+		obs_data_get_string(serviceSettings, "disable_bandwidth_test");
+
+	if (!disabledBandwidthTesting) {
+		std::string tService = qService.toStdString();
+		std::transform(tService.begin(), tService.end(),
+				tService.begin(), tolower);
+		for (size_t i = 0; i < disabledBandwidthServices.size(); i++) {
+			std::string dService = disabledBandwidthServices[i];
+			std::transform(dService.begin(), dService.end(),
+					dService.begin(), tolower);
+			if (tService.find(dService) != std::string::npos) {
+				disabledBandwidthTesting = true;
+				break;
+			}
 		}
 	}
 
-	for (size_t i = 0; i < disabledBandwidthServices.size(); i++) {
-		if (qService.toStdString().find(disabledBandwidthServices[i]) != std::string::npos) {
-			disabledBandwidthTesting = true;
-			break;
-		}
-	}
-
+	ui->doBandwidthTest->blockSignals(true);
 	if (disabledBandwidthTesting) {
 		ui->doBandwidthTest->setChecked(false);
 		ui->doBandwidthTest->setEnabled(false);
 	} else {
 		ui->doBandwidthTest->setEnabled(true);
 	}
+	ui->doBandwidthTest->blockSignals(false);
 }
 
 void AutoConfigStreamPage::StreamSettingsChanged(bool refreshPropertiesView)
@@ -411,12 +410,23 @@ bool AutoConfigStreamPage::validatePage()
 	OBSData service_settings = obs_data_create();
 	obs_data_release(service_settings);
 
-	QString qServiceType = ui->streamType->currentData().toString();
-	QString qServiceTypeName = ui->streamType->currentText();
+	int test = ui->streamType->currentIndex();
 
-	wiz->customServer = qServiceType.toStdString().find("_custom") != std::string::npos;
+	std::string qServiceType = "";
+	if (ui->streamType->currentIndex() >= 0)
+		qServiceType = (ui->streamType->currentData()).toString().toStdString();
 
-	const char *serverType = qServiceType.toStdString().c_str();
+	std::string qServiceTypeName = ui->streamType->currentText().toStdString();
+
+	blog(LOG_INFO, "type: %s", qServiceType.c_str());
+	blog(LOG_INFO, "name: %s", qServiceTypeName.c_str());
+
+	wiz->customServer = qServiceType.find("_custom") != std::string::npos;
+
+	const char *serverType = qServiceType.c_str();
+
+	const char *json_settings = obs_data_get_json(serviceSettings);
+	blog(LOG_INFO, "test_settings: %s", json_settings);
 
 	if (!wiz->customServer) {
 		obs_data_set_string(service_settings, "service",
@@ -428,7 +438,8 @@ bool AutoConfigStreamPage::validatePage()
 	obs_service_release(service);
 
 	int bitrate = 10000;
-	if (!ui->doBandwidthTest->isChecked()) {
+	bool bandwidthtest = ui->doBandwidthTest->isChecked();
+	if (!bandwidthtest) {
 		bitrate = ui->bitrate->value();
 		wiz->idealBitrate = bitrate;
 	}
@@ -438,21 +449,26 @@ bool AutoConfigStreamPage::validatePage()
 	obs_data_set_int(settings, "bitrate", bitrate);
 	obs_service_apply_encoder_settings(service, settings, nullptr);
 
-	wiz->serviceType = qServiceType.toStdString();
-	wiz->serverName = obs_data_get_string(serviceSettings, "service");
-	wiz->server = obs_data_get_string(serviceSettings, "server");
+	wiz->serviceType = qServiceType;
+	std::string serverName = obs_data_get_string(serviceSettings, "service");
+	wiz->serverName = serverName;
+	std::string server = obs_data_get_string(serviceSettings, "server");
+	wiz->server = server;
+
+	blog(LOG_INFO, "name: %s", wiz->serverName.c_str());
+	blog(LOG_INFO, "addr: %s", wiz->server.c_str());
 
 	if (wiz->customServer)
 		wiz->serverName = wiz->server;
 
-	wiz->bandwidthTest = ui->doBandwidthTest->isChecked();
+	wiz->bandwidthTest = bandwidthtest;
 	wiz->startingBitrate = (int)obs_data_get_int(settings, "bitrate");
 	wiz->idealBitrate = wiz->startingBitrate;
 	wiz->regionUS = ui->regionUS->isChecked();
 	wiz->regionEU = ui->regionEU->isChecked();
 	wiz->regionAsia = ui->regionAsia->isChecked();
 	wiz->regionOther = ui->regionOther->isChecked();
-	wiz->serviceName = obs_data_get_string(serviceSettings, "service");
+	wiz->serviceName = qServiceTypeName;
 
 	if (ui->preferHardware)
 		wiz->preferHardware = ui->preferHardware->isChecked();
@@ -638,8 +654,8 @@ AutoConfig::AutoConfig(QWidget *parent)
 
 	int bitrate = config_get_int(main->Config(), "SimpleOutput", "VBitrate");
 	streamPage->ui->bitrate->setValue(bitrate);
-	streamPage->UpdateBandwidthTest();
-	streamPage->PropertiesChanged();
+	//streamPage->UpdateBandwidthTest();
+	streamPage->StreamSettingsChanged(false);
 
 	streamPage->ui->preferHardware->setChecked(os_get_physical_cores() <= 4);
 

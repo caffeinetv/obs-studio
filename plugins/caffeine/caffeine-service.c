@@ -64,6 +64,8 @@ static void set_requirements(obs_data_t *settings)
 //	obs_data_set_bool(requirements, BROADCAST_RATING_KEY, true);
 	obs_data_set_obj(settings, "requirements", requirements);
 	obs_data_release(requirements);
+
+	obs_data_set_bool(settings, "disable_bandwidth_test", true);
 }
 
 static void caffeine_service_update(void * data, obs_data_t * settings)
