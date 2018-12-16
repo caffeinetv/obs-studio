@@ -56,6 +56,16 @@ static void caffeine_service_free_contents(struct caffeine_service * context)
 	context->broadcast_rating = CAFF_RATING_NONE;
 }
 
+static void set_requirements(obs_data_t *settings)
+{
+	obs_data_t *requirements = obs_data_create();
+	obs_data_set_bool(requirements, REFRESH_TOKEN_KEY, true);
+	obs_data_set_bool(requirements, BROADCAST_TITLE_KEY, true);
+//	obs_data_set_bool(requirements, BROADCAST_RATING_KEY, true);
+	obs_data_set_obj(settings, "requirements", requirements);
+	obs_data_release(requirements);
+}
+
 static void caffeine_service_update(void * data, obs_data_t * settings)
 {
 	trace();
@@ -70,6 +80,8 @@ static void caffeine_service_update(void * data, obs_data_t * settings)
 		bstrdup(obs_data_get_string(settings, BROADCAST_TITLE_KEY));
 	context->broadcast_rating =
 		obs_data_get_int(settings, BROADCAST_RATING_KEY);
+
+	set_requirements(settings);
 }
 
 static void * caffeine_service_create(
@@ -152,6 +164,8 @@ static bool signin_clicked(obs_properties_t * props, obs_property_t * prop,
 	UNUSED_PARAMETER(prop);
 	UNUSED_PARAMETER(data);
 
+	set_requirements(settings);
+
 	char const * username = obs_data_get_string(settings, USERNAME_KEY);
 	char const * password = obs_data_get_string(settings, PASSWORD_KEY);
 
@@ -221,6 +235,8 @@ static bool signout_clicked(obs_properties_t * props, obs_property_t * prop,
 	trace();
 	UNUSED_PARAMETER(prop);
 	UNUSED_PARAMETER(data);
+
+	set_requirements(settings);
 
 	obs_data_erase(settings, REFRESH_TOKEN_KEY);
 	obs_data_erase(settings, USERNAME_KEY);
@@ -302,6 +318,7 @@ static void caffeine_service_defaults(obs_data_t *defaults)
 	trace();
 	obs_data_set_default_string(defaults, BROADCAST_TITLE_KEY,
 		obs_module_text("DefaultBroadcastTitle"));
+	set_requirements(defaults);
 }
 
 static bool caffeine_service_initialize(void * data, obs_output_t * output)
