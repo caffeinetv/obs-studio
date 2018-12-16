@@ -990,13 +990,16 @@ void AutoConfigTestPage::FinalizeResults()
 		wiz->idealBitrate = (int)obs_data_get_int(vencoder_settings,
 				"bitrate");
 
-		if (!wiz->customServer)
+		if (!wiz->customServer && !wiz->serviceName.empty())
 			form->addRow(
 				newLabel("Basic.AutoConfig.StreamPage.Service"),
 				new QLabel(wiz->serviceName.c_str(),
 					ui->finishPage));
-		form->addRow(newLabel("Basic.AutoConfig.StreamPage.Server"),
-			new QLabel(wiz->serverName.c_str(), ui->finishPage));
+		if(!wiz->serverName.empty())
+			form->addRow(
+				newLabel("Basic.AutoConfig.StreamPage.Server"),
+				new QLabel(wiz->serverName.c_str(),
+					ui->finishPage));
 		form->addRow(newLabel("Basic.Settings.Output.VideoBitrate"),
 			new QLabel(QString::number(wiz->idealBitrate),
 				ui->finishPage));
