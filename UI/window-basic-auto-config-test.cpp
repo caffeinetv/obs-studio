@@ -981,8 +981,7 @@ void AutoConfigTestPage::FinalizeResults()
 		obs_data_set_int(vencoder_settings, "bitrate",
 				wiz->idealBitrate);
 
-		obs_data_set_string(service_settings, "service",
-				wiz->serviceName.c_str());
+		obs_data_apply(service_settings, wiz->serviceSettings);
 		obs_service_update(service, service_settings);
 		obs_service_apply_encoder_settings(service,
 				vencoder_settings, nullptr);
