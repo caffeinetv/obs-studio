@@ -51,6 +51,37 @@ static void GetServiceInfo(std::string &type, std::string &service,
 	key = obs_data_get_string(settings, "key");
 }
 
+static bool serviceSpecifiedFPS(obs_data_t *settings, int *fps_num,
+	int *fps_den, bool *prefer_high_fps)
+{
+	obs_data_t *videoSettings = obs_data_get_obj(settings, "output_settings");
+	int found_requirement = 0;
+	if (videoSettings) {
+		obs_data_item_t *item;
+		for (item = obs_data_first(videoSettings); item; obs_data_item_next(&item)) {
+			obs_data_type item_type = obs_data_item_gettype(item);
+			const char *name = obs_data_item_get_name(item);
+
+			if (!obs_data_item_has_user_value(item))
+				continue;
+
+			if (strcmp(name, "output_fps_num") == 0) {
+				*fps_num = obs_data_item_get_int(item);
+				found_requirement |= 0x1;
+			} else if (strcmp(name, "output_fps_den") == 0) {
+				*fps_den = obs_data_item_get_int(item);
+				found_requirement |= 0x2;
+			} else if (strcmp(name, "output_prefer_high_fps") == 0) {
+				*prefer_high_fps = obs_data_item_get_bool(item);
+				found_requirement |= 0x4;
+			}
+		}
+
+	}
+	obs_data_release(videoSettings);
+	return found_requirement & 0x7;
+}
+
 /* ------------------------------------------------------------------------- */
 
 AutoConfigStartPage::AutoConfigStartPage(QWidget *parent)
@@ -92,6 +123,37 @@ void AutoConfigStartPage::on_prioritizeRecording_clicked()
 #define FPS_USE_CURRENT         RES_TEXT("FPS.UseCurrent")
 #define FPS_PREFER_HIGH_FPS     RES_TEXT("FPS.PreferHighFPS")
 #define FPS_PREFER_HIGH_RES     RES_TEXT("FPS.PreferHighRes")
+
+void AutoConfigVideoPage::SettingsChanged()
+{
+	if (wiz->serviceSpecifiedFPS) {
+		long double fpsVal =
+			(long double)wiz->specificFPSNum / (long double)wiz->specificFPSDen;
+
+		QString fpsStr = (wiz->specificFPSDen > 1)
+			? QString::number(fpsVal, 'f', 2)
+			: QString::number(fpsVal, 'g', 2);
+		int idx = ui->fps->findData((int)AutoConfig::FPSType::ServiceSpecified);
+		if (idx >= 0) {
+			ui->fps->setItemText(idx, fpsStr);
+		} else {
+			ui->fps->addItem(fpsStr, (int)AutoConfig::FPSType::ServiceSpecified);
+			ui->fps->setCurrentIndex(ui->fps->count()-1);
+		}
+		ui->fps->setDisabled(true);
+	} else {
+		int idx = ui->fps->findData((int)AutoConfig::FPSType::ServiceSpecified);
+		if (idx >= 0)
+			ui->fps->removeItem(idx);
+		ui->fps->setCurrentIndex(0);
+		ui->fps->setDisabled(false);
+	}
+}
+
+void AutoConfigVideoPage::initializePage()
+{
+	SettingsChanged();
+}
 
 AutoConfigVideoPage::AutoConfigVideoPage(QWidget *parent)
 	: QWizardPage (parent),
@@ -205,6 +267,8 @@ bool AutoConfigVideoPage::validatePage()
 		wiz->specificFPSDen = 1;
 		wiz->preferHighFPS = false;
 		break;
+	case AutoConfig::FPSType::ServiceSpecified:
+		break;
 	}
 
 	return true;
@@ -219,7 +283,7 @@ void AutoConfigStreamPage::UpdateBandwidthTest()
 	};
 
 	bool disabledBandwidthTesting =
-		obs_data_get_string(serviceSettings, "disable_bandwidth_test");
+		obs_data_get_bool(serviceSettings, "disable_bandwidth_test");
 
 	if (!disabledBandwidthTesting) {
 		std::string tService = qService.toStdString();
@@ -244,6 +308,18 @@ void AutoConfigStreamPage::UpdateBandwidthTest()
 		ui->doBandwidthTest->setEnabled(true);
 	}
 	ui->doBandwidthTest->blockSignals(false);
+}
+
+void AutoConfigStreamPage::UpdateBitrate()
+{
+	bool disabledBitrate =
+		obs_data_get_bool(serviceSettings, "disable_bitrate_option");
+
+	ui->bitrateLabel->setHidden(disabledBitrate);
+	ui->bitrate->blockSignals(true);
+	ui->bitrate->setHidden(disabledBitrate);
+	ui->bitrate->setEnabled(disabledBitrate);
+	ui->bitrate->blockSignals(false);
 }
 
 void AutoConfigStreamPage::StreamSettingsChanged(bool refreshPropertiesView)
@@ -280,6 +356,7 @@ void AutoConfigStreamPage::StreamSettingsChanged(bool refreshPropertiesView)
 	blog(LOG_INFO, "%s", currentSettings);
 
 	UpdateBandwidthTest();
+	UpdateBitrate();
 
 	bool testBandwidth = ui->doBandwidthTest->isChecked();
 
@@ -402,6 +479,9 @@ bool AutoConfigStreamPage::isComplete() const
 
 int AutoConfigStreamPage::nextId() const
 {
+	wiz->serviceSpecifiedFPS = serviceSpecifiedFPS(serviceSettings,
+			&wiz->specificFPSNum, &wiz->specificFPSDen,
+			&wiz->preferHighFPS);
 	return AutoConfig::VideoPage;
 }
 
@@ -577,7 +657,7 @@ void AutoConfigStreamPage::UpdateCompleted()
 
 	if (key.isEmpty()) {
 		ready = validateRequirements(serviceSettings);
-	} else if (key.isEmpty()) {
+	} else {
 		QString qServiceType = ui->streamType->currentData().toString();
 		bool custom = qServiceType.toStdString().find("_custom") != std::string::npos;
 		if (custom) {
@@ -616,9 +696,9 @@ AutoConfig::AutoConfig(QWidget *parent)
 	setWizardStyle(QWizard::ModernStyle);
 #endif
 	AutoConfigStreamPage *streamPage = new AutoConfigStreamPage();
-
+	AutoConfigVideoPage *videoPage = new AutoConfigVideoPage();
 	setPage(StartPage, new AutoConfigStartPage());
-	setPage(VideoPage, new AutoConfigVideoPage());
+	setPage(VideoPage, videoPage);
 	setPage(StreamPage, streamPage);
 	setPage(TestPage, new AutoConfigTestPage());
 	setWindowTitle(QTStr("Basic.AutoConfig"));
