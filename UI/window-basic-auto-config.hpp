@@ -177,6 +177,7 @@ public:
 
 public slots:
 	void UpdateCompleted();
+	void UpdateBandwidthTest();
 	void StreamSettingsChanged(bool refreshPropertiesView);
 	void SettingsChanged();
 	void PropertiesChanged();
