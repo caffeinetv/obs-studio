@@ -57,7 +57,8 @@ class AutoConfig : public QWizard {
 		PreferHighRes,
 		UseCurrent,
 		fps30,
-		fps60
+		fps60,
+		ServiceSpecified
 	};
 
 	static inline const char *GetEncoderId(Encoder enc);
@@ -100,6 +101,8 @@ class AutoConfig : public QWizard {
 	bool preferHardware = false;
 	int specificFPSNum = 0;
 	int specificFPSDen = 0;
+
+	bool serviceSpecifiedFPS = false;
 
 	void TestHardwareEncoding();
 	bool CanTestServer(const char *server);
@@ -152,6 +155,9 @@ public:
 
 	virtual int nextId() const override;
 	virtual bool validatePage() override;
+	virtual void initializePage() override;
+public slots:
+	void SettingsChanged();
 };
 
 class AutoConfigStreamPage : public QWizardPage {
@@ -178,6 +184,7 @@ public:
 public slots:
 	void UpdateCompleted();
 	void UpdateBandwidthTest();
+	void UpdateBitrate();
 	void StreamSettingsChanged(bool refreshPropertiesView);
 	void SettingsChanged();
 	void PropertiesChanged();
