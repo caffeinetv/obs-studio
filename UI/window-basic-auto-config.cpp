@@ -69,7 +69,9 @@ AutoConfigStartPage::~AutoConfigStartPage()
 
 int AutoConfigStartPage::nextId() const
 {
-	return AutoConfig::VideoPage;
+return wiz->type == AutoConfig::Type::Recording
+              ? AutoConfig::VideoPage
+              : AutoConfig::StreamPage;
 }
 
 void AutoConfigStartPage::on_prioritizeStreaming_clicked()
@@ -164,9 +166,7 @@ AutoConfigVideoPage::~AutoConfigVideoPage()
 
 int AutoConfigVideoPage::nextId() const
 {
-	return wiz->type == AutoConfig::Type::Recording
-		? AutoConfig::TestPage
-		: AutoConfig::StreamPage;
+	return AutoConfig::TestPage;
 }
 
 bool AutoConfigVideoPage::validatePage()
@@ -402,7 +402,7 @@ bool AutoConfigStreamPage::isComplete() const
 
 int AutoConfigStreamPage::nextId() const
 {
-	return AutoConfig::TestPage;
+	return AutoConfig::VideoPage;
 }
 
 bool AutoConfigStreamPage::validatePage()
