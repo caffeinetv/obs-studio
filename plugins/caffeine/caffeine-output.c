@@ -346,8 +346,10 @@ static void caffeine_stream_failed(void *data, caff_error error)
 {
 	struct caffeine_output *context = data;
 
-	set_error("%s: [%d] %s", obs_module_text("ErrorStartStream"), error,
-		caff_error_string(error));
+	set_error(context->output, "%s: [%d] %s",
+        obs_module_text("ErrorStartStream"),
+        error,
+        caff_error_string(error));
 
 	set_state(context, STOPPING);
 	caffeine_stop_stream(context);
