@@ -21,16 +21,6 @@
 #define CAFFEINE_LOG_TITLE "caffeine output"
 #include "caffeine-log.h"
 
-#define set_error(fmt, ...) \
-	do { \
-		struct dstr message; \
-		dstr_init(&message); \
-		dstr_printf(&message, fmt, __VA_ARGS__); \
-		log_error("%s", message.array); \
-		obs_output_set_last_error(context->output, message.array); \
-		dstr_free(&message); \
-	} while(false)
-
 /* Uncomment this to log each call to raw_audio/video
 #define TRACE_FRAMES
 /**/
@@ -213,7 +203,7 @@ static bool caffeine_start(void *data)
 	struct caffeine_output *context = data;
 
 	if (!obs_get_video_info(&context->video_info)) {
-		set_error("Failed to get video info");
+		set_error(context->output, "Failed to get video info");
 		return false;
 	}
 
@@ -225,7 +215,7 @@ static bool caffeine_start(void *data)
 	double ratio = (double)context->video_info.output_width /
 		context->video_info.output_height;
 	if (ratio < min_ratio || ratio > max_ratio) {
-		set_error(obs_module_text("ErrorAspectRatio"));
+		set_error(context->output, obs_module_text("ErrorAspectRatio"));
 		return false;
 	}
 
@@ -233,7 +223,8 @@ static bool caffeine_start(void *data)
 		obs_to_caffeine_format(context->video_info.output_format);
 
 	if (format == CAFF_FORMAT_UNKNOWN) {
-		set_error("%s %s", obs_module_text("ErrorVideoFormat"),
+		set_error(context->output, "%s %s",
+			obs_module_text("ErrorVideoFormat"),
 			get_video_format_name(context->video_info.output_format));
 		return false;
 	}
@@ -264,7 +255,7 @@ static bool caffeine_start(void *data)
 			caffeine_stream_started, caffeine_stream_failed);
 	if (!stream) {
 		set_state(context, OFFLINE);
-		set_error(obs_module_text("ErrorStartStream"));
+		set_error(context->output, obs_module_text("ErrorStartStream"));
 		return false;
 	}
 

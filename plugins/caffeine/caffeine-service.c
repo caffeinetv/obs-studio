@@ -3,8 +3,6 @@
 #include "caffeine-api.h"
 #include "caffeine-service.h"
 
-#include <util/dstr.h>
-
 #define CAFFEINE_LOG_TITLE "caffeine service"
 #include "caffeine-log.h"
 
@@ -302,17 +300,6 @@ static void caffeine_service_defaults(obs_data_t *defaults)
 		obs_module_text("DefaultBroadcastTitle"));
 }
 
-#define set_error(fmt, ...) \
-	do { \
-		struct dstr message; \
-		dstr_init(&message); \
-		dstr_printf(&message, fmt, __VA_ARGS__); \
-		log_error("%s", message.array); \
-		obs_output_set_last_error(output, message.array); \
-		dstr_free(&message); \
-	} while(false)
-
-
 static bool caffeine_service_initialize(void * data, obs_output_t * output)
 {
 	trace();
@@ -324,13 +311,13 @@ static bool caffeine_service_initialize(void * data, obs_output_t * output)
 		obs_data_get_string(settings, REFRESH_TOKEN_KEY);
 
 	if (strcmp(refresh_token, "") == 0) {
-		set_error(obs_module_text("ErrorMustSignIn"));
+		set_error(output, obs_module_text("ErrorMustSignIn"));
 		return false;
 	}
 
 	char const * title = obs_data_get_string(settings, BROADCAST_TITLE_KEY);
 	if (strcmp(title, "") == 0) {
-		set_error(obs_module_text("ErrorMustSetTitle"));
+		set_error(output, obs_module_text("ErrorMustSetTitle"));
 		return false;
 	}
 
@@ -345,7 +332,7 @@ static bool caffeine_service_initialize(void * data, obs_output_t * output)
 	credentials = caffeine_refresh_auth(context->refresh_token);
 
 	if (!credentials) {
-		set_error(obs_module_text("ErrorExpiredAuth"));
+		set_error(output, obs_module_text("ErrorExpiredAuth"));
 		/* todo switch to non-logged-in state*/
 		return false;
 	}
@@ -353,11 +340,11 @@ static bool caffeine_service_initialize(void * data, obs_output_t * output)
 	user_info = caffeine_getuser(credentials);
 
 	if (!user_info) {
-		set_error(obs_module_text("ErrorNoUserInfo"));
+		set_error(output, obs_module_text("ErrorNoUserInfo"));
 		goto cleanup_auth;
 	}
 	if (!user_info->can_broadcast) {
-		set_error(obs_module_text("ErrorCantBroadcast"));
+		set_error(output, obs_module_text("ErrorCantBroadcast"));
 		caffeine_free_user_info(&user_info);
 		goto cleanup_auth;
 	}
