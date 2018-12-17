@@ -4762,7 +4762,7 @@ void OBSBasic::StartStreaming()
 	}
 
 	if (!outputHandler->StartStreaming(service)) {
-		QString message = outputHandler->hasLastError
+		QString message = !outputHandler->lastError.empty()
 			? QTStr(outputHandler->lastError.c_str())
 			: QTStr("Output.StartFailedGeneric");
 		ui->streamButton->setText(QTStr("Basic.Main.StartStreaming"));

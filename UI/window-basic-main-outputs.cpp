@@ -770,7 +770,7 @@ bool SimpleOutput::StartStreaming(obs_service_t *service)
 	}
 
 	const char *error = obs_output_get_last_error(streamOutput);
-	hasLastError = error && *error;
+	bool hasLastError = error && *error;
 	if (hasLastError) {
 		lastError = error;
 	}
@@ -1567,8 +1567,13 @@ bool AdvancedOutput::StartStreaming(obs_service_t *service)
 	}
 
 	const char *error = obs_output_get_last_error(streamOutput);
-	hasLastError = error && *error;
-	lastError = error;
+	bool hasLastError = error && *error;
+	if (hasLastError) {
+		lastError = error;
+	}
+	else {
+		lastError = string();
+	}
 
 	blog(LOG_WARNING, "Stream output type '%s' failed to start!%s%s",
 			type,
