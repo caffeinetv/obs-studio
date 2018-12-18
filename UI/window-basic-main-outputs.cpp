@@ -40,14 +40,15 @@ static void OBSStartStreaming(void *data, calldata_t *params)
 {
 	BasicOutputHandler *output = static_cast<BasicOutputHandler*>(data);
 	// CAFFEINE TEMP
-	if (output->streamOutput) {
-		char const * username = obs_output_get_username(output->streamOutput);
-		if (username && *username) {
-			QUrl url("https://www.caffeine.tv/" +
-				QUrl::toPercentEncoding(username));
-			QDesktopServices::openUrl(url);
-		}
-	}
+    // TODO: Uncomment
+//    if (output->streamOutput) {
+//        char const * username = obs_output_get_username(output->streamOutput);
+//        if (username && *username) {
+//            QUrl url("https://www.caffeine.tv/" +
+//                QUrl::toPercentEncoding(username));
+//            QDesktopServices::openUrl(url);
+//        }
+//    }
 	// END CAFFEINE TEMP
 	output->streamingActive = true;
 	QMetaObject::invokeMethod(output->main, "StreamingStart");
