@@ -1145,7 +1145,7 @@ static struct dstr make_title(char const * title, enum caffeine_rating rating)
 	return final_title;
 }
 
-static char * do_set_stage_live(
+static struct caffeine_stage_response do_set_stage_live(
 	bool is_live,
 	char const * session_id,
 	char const * stage_id,
@@ -1164,8 +1164,10 @@ static char * do_set_stage_live(
 		"audio", 1,
 		"video", 1);
 
+	struct caffeine_stage_response result = { NULL, 0 };
+
 	if (!stream_json)
-		return NULL;
+		return result;
 
 	struct dstr final_title = make_title(title, rating);
 	json_t * payload_json = json_pack("{s:s,s:s,s:s,s:[o],s:s}",
@@ -1180,7 +1182,7 @@ static char * do_set_stage_live(
 	{
 		log_error("Failed to create request JSON");
 		json_decref(stream_json);
-		return NULL;
+		return result;
 	}
 
 	char const * request_type = "POST";
@@ -1195,7 +1197,7 @@ static char * do_set_stage_live(
 	{
 		log_error("Failed to create request JSON");
 		json_decref(payload_json);
-		return NULL;
+		return result;
 	}
 
 	char * request_body = json_dumps(request_json, 0);
@@ -1203,10 +1205,8 @@ static char * do_set_stage_live(
 	if (!request_body)
 	{
 		log_error("Failed to serialize request JSON");
-		return NULL;
+		return result;
 	}
-
-	char * result = NULL;
 
 	CURL * curl = curl_easy_init();
 	if (!curl)
@@ -1263,8 +1263,9 @@ static char * do_set_stage_live(
 		goto json_parsed_error;
 	}
 
+	result.status_code = response_code;
 	if (session_id) {
-		result = session_id;
+		result.session_id = session_id;
 	}
 	else {
 		char const * new_session_id;
@@ -1274,7 +1275,7 @@ static char * do_set_stage_live(
 		}
 		log_debug("got session id %s", new_session_id);
 
-		result = bstrdup(new_session_id);
+		result.session_id = bstrdup(new_session_id);
 	}
 
 	if (response_code / 100 == 2)
@@ -1296,7 +1297,7 @@ curl_init_error:
 	return result;
 }
 
-char * set_stage_live(
+struct caffeine_stage_response set_stage_live(
 	bool is_live,
 	char const * session_id,
 	char const * stage_id,
@@ -1306,9 +1307,15 @@ char * set_stage_live(
 	char const * game_id,
 	struct caffeine_credentials * creds)
 {
-	retry_request(char*,
-		do_set_stage_live(is_live, session_id, stage_id, stream_id,
-				title, rating, game_id, creds));
+	struct caffeine_stage_response result = { NULL, 0 };
+	for (int try_num = 0; try_num < RETRY_MAX; ++try_num) {
+		result = do_set_stage_live(is_live, session_id, stage_id,
+				stream_id, title, rating, game_id, creds);
+		if (result.session_id)
+			break;
+		os_sleep_ms(1000 + 1000 * try_num);
+	}
+	return result;
 }
 
 void add_text_part(
