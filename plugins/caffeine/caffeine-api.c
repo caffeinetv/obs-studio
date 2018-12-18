@@ -1164,7 +1164,7 @@ static struct caffeine_stage_response do_set_stage_live(
 		"audio", 1,
 		"video", 1);
 
-	struct caffeine_stage_response result = { NULL, 0 };
+	struct caffeine_stage_response result = { 0 };
 
 	if (!stream_json)
 		return result;
@@ -1307,7 +1307,7 @@ struct caffeine_stage_response set_stage_live(
 	char const * game_id,
 	struct caffeine_credentials * creds)
 {
-	struct caffeine_stage_response result = { NULL, 0 };
+	struct caffeine_stage_response result = { 0 };
 	for (int try_num = 0; try_num < RETRY_MAX; ++try_num) {
 		result = do_set_stage_live(is_live, session_id, stage_id,
 				stream_id, title, rating, game_id, creds);
