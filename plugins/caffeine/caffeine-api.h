@@ -42,6 +42,8 @@ enum caffeine_rating {
 	CAFF_RATING_MAX,
 };
 
+bool caffeine_check_version();
+
 struct caffeine_auth_response * caffeine_signin(
 	char const * username,
 	char const * password,

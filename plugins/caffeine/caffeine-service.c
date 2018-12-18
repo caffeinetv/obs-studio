@@ -310,6 +310,11 @@ static bool caffeine_service_initialize(void * data, obs_output_t * output)
 	UNUSED_PARAMETER(output);
 	struct caffeine_service * context = data;
 
+	if (!caffeine_check_version()) {
+		set_error(output, obs_module_text("ErrorOldVersion"));
+		return false;
+	}
+
 	obs_data_t * settings = obs_service_get_settings(context->service);
 	char const * refresh_token =
 		obs_data_get_string(settings, REFRESH_TOKEN_KEY);
