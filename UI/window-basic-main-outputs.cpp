@@ -1,6 +1,7 @@
 #include <string>
 #include <algorithm>
 #include <QMessageBox>
+#include <qdesktopservices.h>
 #include "qt-wrappers.hpp"
 #include "audio-encoders.hpp"
 #include "window-basic-main.hpp"
@@ -38,6 +39,16 @@ static void OBSStreamStopping(void *data, calldata_t *params)
 static void OBSStartStreaming(void *data, calldata_t *params)
 {
 	BasicOutputHandler *output = static_cast<BasicOutputHandler*>(data);
+	// CAFFEINE TEMP
+	if (output->streamOutput) {
+		char const * username = obs_output_get_username(output->streamOutput);
+		if (username && *username) {
+			QUrl url("https://www.caffeine.tv/" +
+				QUrl::toPercentEncoding(username));
+			QDesktopServices::openUrl(url);
+		}
+	}
+	// END CAFFEINE TEMP
 	output->streamingActive = true;
 	QMetaObject::invokeMethod(output->main, "StreamingStart");
 

@@ -743,6 +743,14 @@ static void caffeine_destroy(void *data)
 	bfree(data);
 }
 
+char const * caffeine_get_username(void * data)
+{
+	trace();
+	struct caffeine_output *context = data;
+	struct obs_service_t *service = obs_output_get_service(context->output);
+	return obs_service_query(service, CAFFEINE_QUERY_USERNAME);
+}
+
 struct obs_output_info caffeine_output_info = {
 	.id        = "caffeine_output",
 	.flags     = OBS_OUTPUT_AV | OBS_OUTPUT_SERVICE,
@@ -753,4 +761,5 @@ struct obs_output_info caffeine_output_info = {
 	.raw_audio = caffeine_raw_audio,
 	.stop      = caffeine_stop,
 	.destroy   = caffeine_destroy,
+	.get_username = caffeine_get_username,
 };
