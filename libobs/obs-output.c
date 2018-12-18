@@ -480,6 +480,18 @@ obs_properties_t *obs_output_properties(const obs_output_t *output)
 	return NULL;
 }
 
+const char *obs_output_get_username(const obs_output_t * output)
+{
+	if (!obs_output_valid(output, "obs_output_get_username"))
+		return NULL;
+
+	if (output && output->info.get_username)
+		return output->info.get_username(output->context.data);
+
+	return NULL;
+}
+
+
 void obs_output_update(obs_output_t *output, obs_data_t *settings)
 {
 	if (!obs_output_valid(output, "obs_output_update"))

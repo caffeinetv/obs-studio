@@ -1513,6 +1513,10 @@ EXPORT void obs_sceneitem_defer_group_resize_end(obs_sceneitem_t *item);
 
 EXPORT const char *obs_output_get_display_name(const char *id);
 
+// CAFFEINE TEMP
+EXPORT const char *obs_output_get_username(obs_output_t *output);
+// END CAFFEINE TEMP
+
 /**
  * Creates an output.
  *
