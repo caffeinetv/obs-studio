@@ -1083,11 +1083,17 @@ void AutoConfigTestPage::NextStage()
 
 	} else if (stage == Stage::BandwidthTest) {
 		stage = Stage::StreamEncoder;
-		StartStreamEncoderStage();
+		if (wiz->skipStreamEncoder)
+			NextStage();
+		else
+			StartStreamEncoderStage();
 
 	} else if (stage == Stage::StreamEncoder) {
 		stage = Stage::RecordingEncoder;
-		StartRecordingEncoderStage();
+		if (wiz->skipRecordEncoder)
+			NextStage();
+		else
+			StartRecordingEncoderStage();
 
 	} else {
 		stage = Stage::Finished;

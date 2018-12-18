@@ -88,6 +88,9 @@ class AutoConfig : public QWizard {
 	bool qsvAvailable = false;
 	bool vceAvailable = false;
 
+	bool skipStreamEncoder = false;
+	bool skipRecordEncoder = false;
+
 	int startingBitrate = 2500;
 	bool customServer = false;
 	bool bandwidthTest = false;
@@ -185,6 +188,7 @@ public slots:
 	void UpdateCompleted();
 	void UpdateBandwidthTest();
 	void UpdateBitrate();
+	void UpdatePreferHardware();
 	void StreamSettingsChanged(bool refreshPropertiesView);
 	void SettingsChanged();
 	void PropertiesChanged();
