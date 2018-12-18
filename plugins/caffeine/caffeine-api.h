@@ -47,6 +47,8 @@ struct caffeine_stage_response {
 	char * session_id;
 };
 
+bool caffeine_is_supported_version();
+
 struct caffeine_auth_response * caffeine_signin(
 	char const * username,
 	char const * password,

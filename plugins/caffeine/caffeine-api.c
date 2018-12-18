@@ -1,6 +1,7 @@
 #include "caffeine-api.h"
 
 #include <obs.h>
+#include <obs-config.h>
 
 #include <curl/curl.h>
 #include <jansson.h>
@@ -11,11 +12,16 @@
 #define CAFFEINE_LOG_TITLE "caffeine api"
 #include "caffeine-log.h"
 
+#define STR_IMPL(x) #x
+#define STR(x) STR_IMPL(x)
+#define API_VERSION STR(LIBOBS_API_MAJOR_VER) "." STR(LIBOBS_API_MINOR_VER)
+
 /* TODO: load these from config? */
 #define API_ENDPOINT       "https://api.caffeine.tv/"
 #define REALTIME_ENDPOINT  "https://realtime.caffeine.tv/"
 
 /* TODO: some of these are deprecated */
+#define VERSION_CHECK_URL  API_ENDPOINT  "v1/version-check"
 #define SIGNIN_URL         API_ENDPOINT  "v1/account/signin"
 #define REFRESH_TOKEN_URL  API_ENDPOINT  "v1/account/token"
 #define GETGAMES_URL       API_ENDPOINT  "v1/games"
@@ -72,7 +78,7 @@ static struct curl_slist * caffeine_basic_headers(char const * content_type) {
 	struct curl_slist * headers = NULL;
 	headers = curl_slist_append(headers, content_type);
 	headers = curl_slist_append(headers, "X-Client-Type: obs");
-	headers = curl_slist_append(headers, "X-Client-Version: " OBS_VERSION);
+	headers = curl_slist_append(headers, "X-Client-Version: " API_VERSION);
 	return headers;
 }
 
@@ -132,6 +138,73 @@ char const * caffeine_refresh_token(struct caffeine_credentials * creds)
 		os_sleep_ms(1000 + 1000 * try_num); \
 	} \
 	return (result_t)0
+
+bool do_caffeine_is_supported_version()
+{
+	trace();
+
+	CURL * curl = curl_easy_init();
+	if (!curl)
+	{
+		log_error("Failed to initialize cURL");
+		return false;
+	}
+
+	curl_easy_setopt(curl, CURLOPT_URL, VERSION_CHECK_URL);
+
+	struct curl_slist *headers = caffeine_basic_headers(CONTENT_TYPE_JSON);
+	curl_easy_setopt(curl, CURLOPT_HTTPHEADER, headers);
+
+	struct dstr response_str;
+	dstr_init(&response_str);
+
+	curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION,
+		caffeine_curl_write_callback);
+	curl_easy_setopt(curl, CURLOPT_WRITEDATA, (void*)&response_str);
+
+	char curl_error[CURL_ERROR_SIZE];
+	curl_easy_setopt(curl, CURLOPT_ERRORBUFFER, curl_error);
+
+	bool result = false;
+
+	CURLcode res = curl_easy_perform(curl);
+	if (res != CURLE_OK) {
+		log_error("HTTP failure checking version: [%d] %s", res, curl_error);
+		goto request_error;
+	}
+
+	json_error_t json_error;
+	json_t * response_json = json_loads(response_str.array, 0, &json_error);
+	if (!response_json) {
+		log_error("Failed to parse version check response: %s",
+			json_error.text);
+		goto json_failed_error;
+	}
+	char const *error_text = NULL;
+	int error_result = json_unpack(response_json, "{s:{s:[s!]}}",
+		"errors", "_expired", &error_text);
+	if (error_result == 0) {
+		log_error("", error_text);
+		goto json_parsed_error;
+	}
+	else {
+		result = true;
+	}
+
+json_parsed_error:
+	json_decref(response_json);
+json_failed_error:
+request_error:
+	dstr_free(&response_str);
+	curl_slist_free_all(headers);
+	curl_easy_cleanup(curl);
+
+	return result;
+}
+
+bool caffeine_is_supported_version() {
+	retry_request(bool, do_caffeine_is_supported_version());
+}
 
 /* TODO: refactor this - lots of dupe code between request types
  * TODO: reuse curl handle across requests
