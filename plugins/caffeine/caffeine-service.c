@@ -376,6 +376,8 @@ static void * caffeine_service_query(void * data, int query_id, va_list unused)
 		return service->creds;
 	case CAFFEINE_QUERY_STAGE_ID:
 		return service->user_info->stage_id;
+	case CAFFEINE_QUERY_USERNAME:
+		return service->user_info->username;
 	case CAFFEINE_QUERY_BROADCAST_TITLE:
 		if (service->broadcast_title && *service->broadcast_title)
 			return service->broadcast_title;
