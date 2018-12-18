@@ -271,6 +271,9 @@ bool AutoConfigVideoPage::validatePage()
 		break;
 	}
 
+	wiz->skipRecordEncoder = obs_data_get_bool(wiz->serviceSettings, "disable_record_local_testing");
+	wiz->skipStreamEncoder = obs_data_get_bool(wiz->serviceSettings, "disable_stream_local_testing");
+
 	return true;
 }
 
@@ -307,19 +310,41 @@ void AutoConfigStreamPage::UpdateBandwidthTest()
 	} else {
 		ui->doBandwidthTest->setEnabled(true);
 	}
+	ui->doBandwidthTest->setHidden(disabledBandwidthTesting);
 	ui->doBandwidthTest->blockSignals(false);
 }
 
 void AutoConfigStreamPage::UpdateBitrate()
 {
-	bool disabledBitrate =
+	bool disabled =
 		obs_data_get_bool(serviceSettings, "disable_bitrate_option");
 
-	ui->bitrateLabel->setHidden(disabledBitrate);
+	ui->bitrateLabel->setHidden(disabled);
+	ui->bitrate->setHidden(disabled);
 	ui->bitrate->blockSignals(true);
-	ui->bitrate->setHidden(disabledBitrate);
-	ui->bitrate->setEnabled(disabledBitrate);
+	ui->bitrate->setDisabled(disabled);
 	ui->bitrate->blockSignals(false);
+
+	if (!disabled) {
+		bool testBandwidth = ui->doBandwidthTest->isChecked();
+
+		ui->bitrateLabel->setHidden(testBandwidth);
+		ui->bitrate->setHidden(testBandwidth);
+	}
+
+}
+
+void AutoConfigStreamPage::UpdatePreferHardware()
+{
+	bool disabled =
+		obs_data_get_bool(serviceSettings, "disable_prefer_hardware");
+
+	ui->preferHardware->setHidden(disabled);
+	ui->preferHardware->blockSignals(true);
+	if (disabled)
+		ui->preferHardware->setChecked(false);
+	ui->preferHardware->setDisabled(disabled);
+	ui->preferHardware->blockSignals(false);
 }
 
 void AutoConfigStreamPage::StreamSettingsChanged(bool refreshPropertiesView)
@@ -351,17 +376,18 @@ void AutoConfigStreamPage::StreamSettingsChanged(bool refreshPropertiesView)
 		QObject::connect(streamProperties, SIGNAL(Changed()),
 			this, SLOT(PropertiesChanged()));
 		streamPropertiesLayout->addWidget(streamProperties);
+
+		streamPropertiesLayout->setSizeConstraint(QLayout::SetNoConstraint);
+		streamProperties->setSizePolicy(QSizePolicy::Policy::Minimum, QSizePolicy::Policy::MinimumExpanding);
 	}
 	const char* currentSettings = obs_data_get_json(serviceSettings);
 	blog(LOG_INFO, "%s", currentSettings);
 
 	UpdateBandwidthTest();
 	UpdateBitrate();
+	UpdatePreferHardware();
 
 	bool testBandwidth = ui->doBandwidthTest->isChecked();
-
-	ui->bitrateLabel->setHidden(testBandwidth);
-	ui->bitrate->setHidden(testBandwidth);
 
 	std::vector<std::string> regionBasedServices = {
 		"Twitch",
@@ -576,6 +602,9 @@ bool AutoConfigStreamPage::validatePage()
 		if (button == QMessageBox::No)
 			return false;
 	}
+
+	wiz->skipRecordEncoder = obs_data_get_bool(serviceSettings, "disable_record_local_testing");
+	wiz->skipStreamEncoder = obs_data_get_bool(serviceSettings, "disable_stream_local_testing");
 
 	return true;
 }
