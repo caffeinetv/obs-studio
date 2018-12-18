@@ -42,6 +42,11 @@ enum caffeine_rating {
 	CAFF_RATING_MAX,
 };
 
+struct caffeine_stage_response {
+	long status_code;
+	char * session_id;
+};
+
 struct caffeine_auth_response * caffeine_signin(
 	char const * username,
 	char const * password,
@@ -87,7 +92,7 @@ char * create_broadcast(
 	size_t screenshot_size,
 	struct caffeine_credentials * creds);
 
-char * set_stage_live(
+struct caffeine_stage_response set_stage_live(
 	bool is_live,
 	char const * session_id,
 	char const * stage_id,
