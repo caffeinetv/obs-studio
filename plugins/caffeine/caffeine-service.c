@@ -73,7 +73,10 @@ static void set_requirements(obs_data_t *settings)
 	obs_data_release(output_settings);
 
 	obs_data_set_bool(settings, "disable_bandwidth_test", true);
-	obs_data_set_bool(settings, "disable_bitrate_setting", true);
+	obs_data_set_bool(settings, "disable_bitrate_option", true);
+	obs_data_set_bool(settings, "disable_prefer_hardware", true);
+	obs_data_set_bool(settings, "disable_stream_local_testing", true);
+	obs_data_set_bool(settings, "disable_record_local_testing", true);
 }
 
 static void caffeine_service_update(void * data, obs_data_t * settings)
