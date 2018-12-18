@@ -92,6 +92,7 @@ static int caffeine_to_obs_error(caff_error error)
 		return OBS_OUTPUT_CONNECT_FAILED;
 	case CAFF_ERROR_DISCONNECTED:
 		return OBS_OUTPUT_DISCONNECTED;
+	case CAFF_ERROR_TAKEOVER:
 	default:
 		return OBS_OUTPUT_ERROR;
 	}
@@ -413,8 +414,10 @@ static void * broadcast_thread(void * data)
 	struct caffeine_games * games = caffeine_get_supported_games();
 	char const * game_id = get_game_id(games);
 
-	char * session_id = set_stage_live(false, NULL, stage_id,
-		stream_id, title, rating, game_id, creds);
+	struct caffeine_stage_response stage_response =
+		set_stage_live(false, NULL, stage_id,
+			stream_id, title, rating, game_id, creds);
+	char * session_id = stage_response.session_id;
 	if (!session_id) {
 		caffeine_stream_failed(data, CAFF_ERROR_UNKNOWN);
 		goto get_session_error;
@@ -455,8 +458,14 @@ static void * broadcast_thread(void * data)
 		interval = 0;
 
 		game_id = get_game_id(games);
-		set_stage_live(true, session_id, stage_id, stream_id, title,
-				rating, game_id, creds);
+		stage_response = set_stage_live(true, session_id, stage_id,
+				stream_id, title, rating, game_id, creds);
+		if (stage_response.status_code == 403) {
+			log_warn("%s", obs_module_text("StreamTakeover"));
+			caffeine_stream_failed(data, CAFF_ERROR_TAKEOVER);
+			goto taken_over;
+		}
+
 		update_broadcast(broadcast_id, true, title, rating, game_id,
 				creds);
 
@@ -479,6 +488,7 @@ static void * broadcast_thread(void * data)
 			game_id, creds);
 	update_broadcast(broadcast_id, false, title, rating, game_id, creds);
 
+taken_over:
 	bfree(broadcast_id);
 create_broadcast_error:
 	bfree(session_id);
