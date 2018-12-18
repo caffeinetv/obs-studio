@@ -757,7 +757,7 @@ char const * caffeine_get_username(void * data)
 {
 	trace();
 	struct caffeine_output *context = data;
-	struct obs_service_t *service = obs_output_get_service(context->output);
+	obs_service_t *service = obs_output_get_service(context->output);
 	return obs_service_query(service, CAFFEINE_QUERY_USERNAME);
 }
 
