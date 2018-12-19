@@ -336,6 +336,8 @@ void AutoConfigStreamPage::UpdateBitrate()
 
 void AutoConfigStreamPage::UpdatePreferHardware()
 {
+	if (!ui->preferHardware)
+		return;
 	bool disabled =
 		obs_data_get_bool(serviceSettings, "disable_prefer_hardware");
 
