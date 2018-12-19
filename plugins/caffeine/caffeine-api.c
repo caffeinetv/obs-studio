@@ -628,6 +628,7 @@ void caffeine_free_user_info(struct caffeine_user_info ** user_info)
 	bfree((*user_info)->caid);
 	bfree((*user_info)->username);
 	bfree((*user_info)->stage_id);
+	bfree(*user_info);
 	*user_info = NULL;
 }
 
