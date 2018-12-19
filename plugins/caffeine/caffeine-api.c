@@ -898,6 +898,7 @@ void caffeine_free_game_info(struct caffeine_game_info ** info)
 	}
 	bfree((*info)->id);
 	bfree((*info)->name);
+	bfree((*info)->process_names);
 	bfree(*info);
 	*info = NULL;
 }
