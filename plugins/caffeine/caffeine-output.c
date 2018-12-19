@@ -216,7 +216,8 @@ static bool caffeine_start(void *data)
 	double ratio = (double)context->video_info.output_width /
 		context->video_info.output_height;
 	if (ratio < min_ratio || ratio > max_ratio) {
-		set_error(context->output, obs_module_text("ErrorAspectRatio"));
+		set_error(context->output, "%s",
+			obs_module_text("ErrorAspectRatio"));
 		return false;
 	}
 
@@ -256,7 +257,8 @@ static bool caffeine_start(void *data)
 			caffeine_stream_started, caffeine_stream_failed);
 	if (!stream) {
 		set_state(context, OFFLINE);
-		set_error(context->output, obs_module_text("ErrorStartStream"));
+		set_error(context->output, "%s",
+			obs_module_text("ErrorStartStream"));
 		return false;
 	}
 
