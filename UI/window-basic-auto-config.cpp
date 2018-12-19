@@ -379,6 +379,7 @@ void AutoConfigStreamPage::StreamSettingsChanged(bool refreshPropertiesView)
 
 		streamPropertiesLayout->setSizeConstraint(QLayout::SetNoConstraint);
 		streamProperties->setSizePolicy(QSizePolicy::Policy::Minimum, QSizePolicy::Policy::MinimumExpanding);
+		streamProperties->setMinimumHeight(200);
 	}
 	const char* currentSettings = obs_data_get_json(serviceSettings);
 	blog(LOG_INFO, "%s", currentSettings);
@@ -456,6 +457,8 @@ AutoConfigStreamPage::AutoConfigStreamPage(QWidget *parent)
 
 	streamPropertiesLayout->setSizeConstraint(QLayout::SetNoConstraint);
 	streamProperties->setSizePolicy(QSizePolicy::Policy::Minimum, QSizePolicy::Policy::MinimumExpanding);
+
+	streamProperties->setMinimumHeight(200);
 
 	ui->bitrateLabel->setVisible(false);
 	ui->bitrate->setVisible(false);
