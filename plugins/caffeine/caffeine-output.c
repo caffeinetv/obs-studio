@@ -1091,6 +1091,30 @@ static void caffeine_destroy(void *data)
 	bfree(data);
 }
 
+static float caffeine_get_congestion(void * data)
+{
+	struct caffeine_output * context = data;
+
+	bool is_good_network_quality = true;
+
+	pthread_mutex_lock(&context->stream_mutex);
+
+	if (context->broadcast_info && context->broadcast_info->next_request) {
+		struct caffeine_feed * feed =
+			caffeine_get_stage_feed(
+				context->broadcast_info->next_request->stage,
+				context->broadcast_info->feed_id);
+		if (feed && feed->source_connection_quality) {
+			is_good_network_quality =
+			strcmp(feed->source_connection_quality , "GOOD") == 0;
+		}
+	}
+
+	pthread_mutex_unlock(&context->stream_mutex);
+
+	return is_good_network_quality ? 0.f : 1.f;
+}
+
 char const * caffeine_get_username(void * data)
 {
 	trace();
@@ -1109,5 +1133,6 @@ struct obs_output_info caffeine_output_info = {
 	.raw_audio = caffeine_raw_audio,
 	.stop      = caffeine_stop,
 	.destroy   = caffeine_destroy,
+	.get_congestion = caffeine_get_congestion,
 	.get_username = caffeine_get_username,
 };
