@@ -9,6 +9,8 @@
 #include <util/threading.h>
 #include <util/platform.h>
 
+#include "caffeine-config.h"
+
 #define CAFFEINE_LOG_TITLE "caffeine api"
 #include "caffeine-log.h"
 
@@ -17,7 +19,6 @@
 #define API_VERSION STR(LIBOBS_API_MAJOR_VER) "." STR(LIBOBS_API_MINOR_VER)
 
 /* TODO: load these from config? */
-#define CAFFEINE_STAGING 1
 #if CAFFEINE_STAGING
 #define CAFFEINE_DOMAIN "staging.caffeine.tv/"
 #else
