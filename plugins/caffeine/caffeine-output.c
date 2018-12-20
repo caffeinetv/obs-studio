@@ -530,12 +530,12 @@ static char const * get_game_id(struct caffeine_games * games, char * const proc
 
 // Falls back to obs_id if no foreground game detected
 static char const * get_running_game_id(
-    struct caffeine_games * games, const char * obs_id)
+	struct caffeine_games * games, const char * fallback_id)
 {
 	char * foreground_process = get_foreground_process_name();
 	char const * id = get_game_id(games, foreground_process);
 	bfree(foreground_process);
-	return id ? id : obs_id;
+	return id ? id : fallback_id;
 }
 
 // Returns `true` if the feed's game id changed
