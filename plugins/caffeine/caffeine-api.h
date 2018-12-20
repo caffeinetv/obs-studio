@@ -84,28 +84,9 @@ struct caffeine_stage_request {
 	struct caffeine_stage * stage;
 };
 
-struct caffeine_stage_response {
-	char * cursor;
-	double retry_in;
-	struct caffeine_stage * stage;
-};
+char * caffeine_generate_unique_id();
 
-struct caffeine_display_message {
-	char * title;
-	char * body;
-};
-
-struct caffeine_failure_response {
-	char * type;
-	char * reason;
-	struct caffeine_display_message display_message;
-};
-
-struct caffeine_stage_response_result {
-	struct caffeine_stage_response * response;
-	struct caffeine_failure_response * failure;
-};
-
+void caffeine_set_string(char ** source, char const * new_value);
 
 bool caffeine_is_supported_version();
 
@@ -170,11 +151,8 @@ struct caffeine_stage_request * caffeine_copy_stage_request(
 	struct caffeine_stage_request const * request);
 void caffeine_free_stage_request(struct caffeine_stage_request ** request);
 
-void caffeine_free_stage_response(struct caffeine_stage_response ** response);
-void caffeine_free_failure(struct caffeine_failure_response ** failure);
-void caffeine_free_stage_response_result(
-	struct caffeine_stage_response_result ** result);
-
-struct caffeine_stage_response_result * caffeine_stage_update(
-        struct caffeine_stage_request request,
-        struct caffeine_credentials * creds);
+// If successful, updates request cursor and stage with the response values
+bool caffeine_request_stage_update(
+	struct caffeine_stage_request * request,
+	struct caffeine_credentials * creds,
+	double * retry_in);

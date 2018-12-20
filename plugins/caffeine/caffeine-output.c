@@ -222,19 +222,6 @@ static bool is_mutating_feed(struct caffeine_output * context)
 	return os_atomic_load_bool(&context->is_mutating_feed);
 }
 
-static void transfer_stage_data(
-	struct caffeine_stage_response ** from_response,
-	struct caffeine_stage_request * to_request)
-{
-	bfree(to_request->cursor);
-	caffeine_free_stage(&to_request->stage);
-	to_request->cursor = (*from_response)->cursor;
-	to_request->stage = (*from_response)->stage;
-	(*from_response)->cursor = NULL;
-	(*from_response)->stage = NULL;
-	caffeine_free_stage_response(from_response);
-}
-
 static char const * caffeine_offer_generated(void * data, char const * sdp_offer);
 static bool caffeine_ice_gathered(void *data, caff_ice_candidates candidates, size_t num_candidates);
 static void caffeine_stream_started(void *data);
@@ -313,51 +300,6 @@ static bool caffeine_start(void *data)
 	pthread_mutex_unlock(&context->stream_mutex);
 
 	return true;
-}
-
-static char * caffeine_generate_unique_id()
-{
-	const int id_length = 12;
-	const char charset[] = "abcdefghijklmnopqrstuvwxyz0123456789";
-
-	struct dstr id;
-	dstr_init(&id);
-	dstr_reserve(&id, id_length + 1);
-
-	for (int i = 0; i < id_length; ++i) {
-		int random_index = rand() % (sizeof(charset) - 1);
-		char character = charset[random_index];
-		dstr_cat_ch(&id, character);
-	}
-
-	return id.array;
-}
-
-static void caffeine_set_string(char ** source, char const * new_value) {
-	bfree(*source);
-	*source = bstrdup(new_value);
-}
-
-// If successful, updates request stage with the response values
-static bool caffeine_request_stage_update(
-	struct caffeine_stage_request * request,
-	struct caffeine_credentials * creds,
-	double * retry_in)
-{
-	struct caffeine_stage_response_result * result =
-		caffeine_stage_update(*request, creds);
-
-	bool success = result && result->response;
-	if (success) {
-		if (retry_in) {
-			*retry_in = result->response->retry_in;
-		}
-		transfer_stage_data(&result->response, request);
-	}
-
-	caffeine_free_stage_response_result(&result);
-
-	return success;
 }
 
 /* Called from another thread, blocking OK */
