@@ -25,6 +25,7 @@ include_directories(
 set(caffeine_SOURCES
 	caffeine-api.c
 	caffeine-api.h
+	caffeine-config.h
 	caffeine-log.h
 	caffeine-foreground-process.c
 	caffeine-foreground-process.h

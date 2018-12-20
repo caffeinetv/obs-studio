@@ -7,6 +7,10 @@
 #include "window-basic-main.hpp"
 #include "window-basic-main-outputs.hpp"
 
+// CAFFEINE TEMP
+#include "../plugins/caffeine/caffeine-config.h"
+// CAFFEINE TEMP
+
 using namespace std;
 
 static void OBSStreamStarting(void *data, calldata_t *params)
@@ -40,15 +44,19 @@ static void OBSStartStreaming(void *data, calldata_t *params)
 {
 	BasicOutputHandler *output = static_cast<BasicOutputHandler*>(data);
 	// CAFFEINE TEMP
-    // TODO: Uncomment
-//    if (output->streamOutput) {
-//        char const * username = obs_output_get_username(output->streamOutput);
-//        if (username && *username) {
-//            QUrl url("https://www.caffeine.tv/" +
-//                QUrl::toPercentEncoding(username));
-//            QDesktopServices::openUrl(url);
-//        }
-//    }
+    if (output->streamOutput) {
+        char const * username = obs_output_get_username(output->streamOutput);
+        if (username && *username) {
+#if CAFFEINE_STAGING
+            char const * base_url = "https://www.staging.caffeine.tv/";
+#else
+            char const * base_url = "https://www.caffeine.tv/";
+#endif
+            QUrl url(base_url +
+                QUrl::toPercentEncoding(username));
+            QDesktopServices::openUrl(url);
+        }
+    }
 	// END CAFFEINE TEMP
 	output->streamingActive = true;
 	QMetaObject::invokeMethod(output->main, "StreamingStart");
