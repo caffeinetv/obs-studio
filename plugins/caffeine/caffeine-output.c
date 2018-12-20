@@ -369,7 +369,8 @@ static char const * caffeine_offer_generated(
 		obs_service_query(service, CAFFEINE_QUERY_CREDENTIALS);
 	char * username = bstrdup(
 		obs_service_query(service, CAFFEINE_QUERY_USERNAME));
-	char * raw_title = obs_service_query(service, CAFFEINE_QUERY_BROADCAST_TITLE);
+	char const * raw_title =
+		obs_service_query(service, CAFFEINE_QUERY_BROADCAST_TITLE);
 	enum caffeine_rating rating = (enum caffeine_rating)
 		obs_service_query(service, CAFFEINE_QUERY_BROADCAST_RATING);
 
