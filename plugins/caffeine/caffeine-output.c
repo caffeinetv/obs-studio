@@ -725,7 +725,7 @@ static void * broadcast_thread(void * data)
 			if (failures > max_failures) {
 				log_error("Heartbeat failed %d times; ending stream.",
 						  failures);
-				caffeine_stream_failed(data, CAFF_ERROR_UNKNOWN);
+				caffeine_stream_failed(data, CAFF_ERROR_DISCONNECTED);
 				break;
 			}
 		}
