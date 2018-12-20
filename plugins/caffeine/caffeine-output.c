@@ -755,8 +755,12 @@ static void * broadcast_thread(void * data)
 		set_is_mutating_feed(context, true);
 
 		if (!caffeine_request_stage_update(request, creds, NULL)) {
-			caffeine_stream_failed(data, CAFF_ERROR_BROADCAST_FAILED);
-			goto broadcast_error;
+			set_is_mutating_feed(context, false);
+			/*
+			 If we have a stream going but can't talk to
+			 the stage endpoint, retry the mutation next loop
+			*/
+			continue;
 		}
 
 		if (!request->stage->live
@@ -816,10 +820,10 @@ static void * longpoll_thread(void * data)
 	struct caffeine_credentials * creds =
 		obs_service_query(service, CAFFEINE_QUERY_CREDENTIALS);
 
-	long retry_interval = 0; /* ms */
+	long retry_interval_ms = 0; /* ms */
 	long const check_interval = 100;
 
-	long interval = retry_interval;
+	long interval = retry_interval_ms;
 
 	char * feed_id = NULL;
 
@@ -838,7 +842,7 @@ static void * longpoll_thread(void * data)
 	     os_sleep_ms(check_interval), state = get_state(context))
 	{
 		interval += check_interval;
-		if (interval < retry_interval || is_mutating_feed(context))
+		if (interval < retry_interval_ms || is_mutating_feed(context))
 			continue;
 
 		struct caffeine_stage_request * request = NULL;
@@ -856,8 +860,15 @@ static void * longpoll_thread(void * data)
 
 		double retry_in = 0;
 
-		bool did_update = caffeine_request_stage_update(
-			request, creds, &retry_in);
+		if (!caffeine_request_stage_update(request, creds, &retry_in)) {
+			/*
+			 If we have a stream going but can't talk to
+			 the stage endpoint, just continually retry
+			 with some waiting
+			*/
+			retry_interval_ms = 5000;
+			continue;
+		}
 
 		bool live_feed_is_still_present =
 			request->stage->live
@@ -867,21 +878,19 @@ static void * longpoll_thread(void * data)
 		if (context->broadcast_info) {
 			caffeine_free_stage_request(
 				&context->broadcast_info->next_request);
-			if (did_update) {
-				context->broadcast_info->next_request = request;
-				request = NULL;
-			}
+			context->broadcast_info->next_request = request;
+			request = NULL;
 		}
 		pthread_mutex_unlock(&context->stream_mutex);
 
 		caffeine_free_stage_request(&request);
 
-		if (!did_update || !live_feed_is_still_present) {
+		if (!live_feed_is_still_present) {
 			break;
 		}
 
 		interval = 0;
-		retry_interval = (long)(retry_in * 1000);
+		retry_interval_ms = (long)(retry_in * 1000);
 	}
 
 	bfree(feed_id);
