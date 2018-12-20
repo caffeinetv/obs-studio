@@ -66,6 +66,51 @@ struct caffeine_credentials {
 	pthread_mutex_t mutex;
 };
 
+struct caffeine_stage_response {
+	char * cursor;
+	double retry_in;
+	struct caffeine_stage * stage;
+};
+
+struct caffeine_display_message {
+	char * title;
+	char * body;
+};
+
+struct caffeine_failure_response {
+	char * type;
+	char * reason;
+	struct caffeine_display_message display_message;
+};
+
+struct caffeine_stage_response_result {
+	struct caffeine_stage_response * response;
+	struct caffeine_failure_response * failure;
+};
+
+char * caffeine_generate_unique_id()
+{
+    const int id_length = 12;
+    const char charset[] = "abcdefghijklmnopqrstuvwxyz0123456789";
+
+    struct dstr id;
+    dstr_init(&id);
+    dstr_reserve(&id, id_length + 1);
+
+    for (int i = 0; i < id_length; ++i) {
+        int random_index = rand() % (sizeof(charset) - 1);
+        char character = charset[random_index];
+        dstr_cat_ch(&id, character);
+    }
+
+    return id.array;
+}
+
+void caffeine_set_string(char ** source, char const * new_value) {
+    bfree(*source);
+    *source = bstrdup(new_value);
+}
+
 static size_t caffeine_curl_write_callback(char * ptr, size_t size,
 	size_t nmemb, void * user_data)
 {
@@ -1698,4 +1743,38 @@ struct caffeine_stage_response_result * caffeine_stage_update(
 {
 	retry_request(struct caffeine_stage_response_result *,
         do_caffeine_stage_update(request, creds));
+}
+
+static void transfer_stage_data(
+	struct caffeine_stage_response ** from_response,
+	struct caffeine_stage_request * to_request)
+{
+	bfree(to_request->cursor);
+	caffeine_free_stage(&to_request->stage);
+	to_request->cursor = (*from_response)->cursor;
+	to_request->stage = (*from_response)->stage;
+	(*from_response)->cursor = NULL;
+	(*from_response)->stage = NULL;
+	caffeine_free_stage_response(from_response);
+}
+
+bool caffeine_request_stage_update(
+	struct caffeine_stage_request * request,
+	struct caffeine_credentials * creds,
+	double * retry_in)
+{
+	struct caffeine_stage_response_result * result =
+	caffeine_stage_update(*request, creds);
+
+	bool success = result && result->response;
+	if (success) {
+		if (retry_in) {
+			*retry_in = result->response->retry_in;
+		}
+		transfer_stage_data(&result->response, request);
+	}
+
+	caffeine_free_stage_response_result(&result);
+
+	return success;
 }
