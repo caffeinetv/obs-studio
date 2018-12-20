@@ -495,9 +495,9 @@ static void caffeine_stream_failed(void *data, caff_error error)
 	struct caffeine_output *context = data;
 
 	set_error(context->output, "%s: [%d] %s",
-        obs_module_text("ErrorStartStream"),
-        error,
-        caff_error_string(error));
+		obs_module_text("ErrorStartStream"),
+		error,
+		caff_error_string(error));
 
 	set_state(context, STOPPING);
 	caffeine_stop_stream(context);
@@ -509,22 +509,22 @@ static char const * get_game_id(struct caffeine_games * games, char * const proc
 {
 	if (games && process_name) {
 		for (size_t game_index = 0; game_index < games->num_games; ++game_index) {
-		    	struct caffeine_game_info * info =
+			struct caffeine_game_info * info =
 				games->game_infos[game_index];
 			if (!info)
-			    	continue;
-		    for (size_t pname_index = 0; pname_index < info->num_process_names; ++pname_index) {
-			    char const * pname = info->process_names[pname_index];
-			    if (!pname)
-				    continue;
-			    if (strcmp(process_name, pname) == 0) {
-				    return info->id;
-			    }
-		    }
+				continue;
+			for (size_t pname_index = 0; pname_index < info->num_process_names; ++pname_index) {
+				char const * pname = info->process_names[pname_index];
+				if (!pname)
+			    		continue;
+				if (strcmp(process_name, pname) == 0) {
+			    		return info->id;
+				}
+			}
 		}
 	}
 
-    	return NULL;
+	return NULL;
 }
 
 // Falls back to obs_id if no foreground game detected
@@ -532,9 +532,9 @@ static char const * get_running_game_id(
     struct caffeine_games * games, const char * obs_id)
 {
 	char * foreground_process = get_foreground_process_name();
-    	char const * id = get_game_id(games, foreground_process);
+	char const * id = get_game_id(games, foreground_process);
 	bfree(foreground_process);
-    	return id ? id : obs_id;
+	return id ? id : obs_id;
 }
 
 // Returns `true` if the feed's game id changed
