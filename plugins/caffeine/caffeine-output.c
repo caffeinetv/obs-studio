@@ -36,7 +36,6 @@ struct caffeine_broadcast_info {
 	char * stream_url;
 	char * feed_id;
 	struct caffeine_stage_request * next_request;
-	bool is_mutating_feed;
 };
 
 static void caffeine_free_broadcast_info(struct caffeine_broadcast_info ** info)
@@ -62,6 +61,7 @@ struct caffeine_output
 	pthread_mutex_t stream_mutex;
 	pthread_t broadcast_thread;
 	pthread_t longpoll_thread;
+	volatile bool is_mutating_feed;
 	struct obs_video_info video_info;
 
 	pthread_cond_t screenshot_cond;
@@ -209,6 +209,17 @@ static inline bool transition_state(
 		log_error("Transitioning to state %d expects state %d",
 			new_state, old_state);
 	return result;
+}
+
+static void set_is_mutating_feed(
+	struct caffeine_output * context, bool is_mutating)
+{
+	os_atomic_set_bool(&context->is_mutating_feed, is_mutating);
+}
+
+static bool is_mutating_feed(struct caffeine_output * context)
+{
+	return os_atomic_load_bool(&context->is_mutating_feed);
 }
 
 static void transfer_stage_data(
@@ -741,9 +752,7 @@ static void * broadcast_thread(void * data)
 
 		// Mutate the feed
 
-		pthread_mutex_lock(&context->stream_mutex);
-		context->broadcast_info->is_mutating_feed = true;
-		pthread_mutex_unlock(&context->stream_mutex);
+		set_is_mutating_feed(context, true);
 
 		if (!caffeine_request_stage_update(request, creds, NULL)) {
 			caffeine_stream_failed(data, CAFF_ERROR_BROADCAST_FAILED);
@@ -758,16 +767,17 @@ static void * broadcast_thread(void * data)
 		}
 
 		pthread_mutex_lock(&context->stream_mutex);
-		context->broadcast_info->is_mutating_feed = false;
 		caffeine_free_stage_request(&context->broadcast_info->next_request);
 		context->broadcast_info->next_request = request;
 		request = NULL;
 		pthread_mutex_unlock(&context->stream_mutex);
+		set_is_mutating_feed(context, false);
 	}
+
+	set_is_mutating_feed(context, true);
 
 	pthread_mutex_lock(&context->stream_mutex);
 	if (context->broadcast_info) {
-		context->broadcast_info->is_mutating_feed = true;
 		caffeine_free_stage_request(&request);
 		request = context->broadcast_info->next_request;
 		context->broadcast_info->next_request = NULL;
@@ -795,7 +805,7 @@ broadcast_error:
 static void * longpoll_thread(void * data)
 {
 	// This thread is purely for hearbeating our feed.
-	// If the broadcast thread is making a mutating, this thread holds off.
+	// If the broadcast thread is making a mutation, this thread waits.
 
 	trace();
 	os_set_thread_name("Caffeine broadcast longpoll");
@@ -828,17 +838,13 @@ static void * longpoll_thread(void * data)
 	     os_sleep_ms(check_interval), state = get_state(context))
 	{
 		interval += check_interval;
-		if (interval < retry_interval)
+		if (interval < retry_interval || is_mutating_feed(context))
 			continue;
 
 		struct caffeine_stage_request * request = NULL;
 
 		pthread_mutex_lock(&context->stream_mutex);
 		if (context->broadcast_info) {
-			if (context->broadcast_info->is_mutating_feed) {
-				pthread_mutex_unlock(&context->stream_mutex);
-				continue;
-			}
 			request = caffeine_copy_stage_request(
 				context->broadcast_info->next_request);
 		}
