@@ -808,7 +808,7 @@ static void * longpoll_thread(void * data)
 	// If the broadcast thread is making a mutation, this thread waits.
 
 	trace();
-	os_set_thread_name("Caffeine broadcast longpoll");
+	os_set_thread_name("Caffeine longpoll");
 
 	struct caffeine_output * context = data;
 
