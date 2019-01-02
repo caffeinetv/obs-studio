@@ -59,7 +59,6 @@ static bool serviceSpecifiedFPS(obs_data_t *settings, int *fps_num,
 	if (videoSettings) {
 		obs_data_item_t *item;
 		for (item = obs_data_first(videoSettings); item; obs_data_item_next(&item)) {
-			obs_data_type item_type = obs_data_item_gettype(item);
 			const char *name = obs_data_item_get_name(item);
 
 			if (!obs_data_item_has_user_value(item))
@@ -519,8 +518,6 @@ bool AutoConfigStreamPage::validatePage()
 	OBSData service_settings = obs_data_create();
 	obs_data_release(service_settings);
 
-	int test = ui->streamType->currentIndex();
-
 	std::string qServiceType = "";
 	if (ui->streamType->currentIndex() >= 0)
 		qServiceType = (ui->streamType->currentData()).toString().toStdString();
@@ -628,7 +625,7 @@ static bool validateRequirements(obs_data_t *settings)
 		if (!obs_data_item_has_user_value(item))
 			continue;
 
-		if (strcmpi(name, "requirements") == 0) {
+		if (strcmp(name, "requirements") == 0) {
 			switch (item_type) {
 			case OBS_DATA_STRING:
 			case OBS_DATA_OBJECT:
@@ -663,7 +660,6 @@ static bool validateRequirements(obs_data_t *settings)
 	const char *json = obs_data_get_json(requirementsObj);
 	blog(LOG_INFO, "%s", json);
 	for (item = obs_data_first(requirementsObj); item; obs_data_item_next(&item)) {
-		enum obs_data_type type = obs_data_item_gettype(item);
 		const char *name = obs_data_item_get_name(item);
 		blog(LOG_INFO, "%s required", name);
 		if (!obs_data_item_has_user_value(item))
