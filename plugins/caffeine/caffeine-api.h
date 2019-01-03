@@ -17,12 +17,6 @@ struct caffeine_user_info {
 	bool can_broadcast;
 };
 
-struct caffeine_stream_info {
-	char * stream_id;
-	char * sdp_answer;
-	char * signed_payload;
-};
-
 /* TODO: game detection will be handled behind the scenes */
 struct caffeine_game_info {
 	char * id;
@@ -42,12 +36,63 @@ enum caffeine_rating {
 	CAFF_RATING_MAX,
 };
 
-struct caffeine_stage_response {
-	long status_code;
-	char * session_id;
+struct caffeine_feed_stream {
+	char * id;
+	char * source_id;
+	char * url;
+	char * sdp_offer;
+	char * sdp_answer;
 };
 
+struct caffeine_feed_capabilities {
+	bool video;
+	bool audio;
+};
+
+struct caffeine_content {
+	char * id;
+    	char * type;
+};
+
+struct caffeine_feed {
+	char * id;
+	char * client_id;
+	char * role;
+	char * description;
+	char * source_connection_quality;
+	double volume;
+	struct caffeine_feed_capabilities capabilities;
+	struct caffeine_content content;
+	struct caffeine_feed_stream stream;
+};
+
+struct caffeine_stage {
+	char * id;
+	char * username;
+	char * title;
+	char * broadcast_id;
+	bool upsert_broadcast;
+	bool live;
+	struct caffeine_feed * feeds;
+	size_t num_feeds;
+};
+
+struct caffeine_stage_request {
+	char * username;
+	char * client_id;
+	char * cursor;
+	struct caffeine_stage * stage;
+};
+
+char * caffeine_generate_unique_id();
+
+void caffeine_set_string(char ** source, char const * new_value);
+
 bool caffeine_is_supported_version();
+
+struct caffeine_heartbeat_response {
+	char * connection_quality;
+};
 
 struct caffeine_auth_response * caffeine_signin(
 	char const * username,
@@ -73,46 +118,41 @@ struct caffeine_games * caffeine_get_supported_games();
 void caffeine_free_game_info(struct caffeine_game_info ** info);
 void caffeine_free_game_list(struct caffeine_games ** games);
 
-struct caffeine_stream_info * caffeine_start_stream(
-	char const * stage_id,
-	char const * sdp_offer,
-	struct caffeine_credentials * creds);
-
-void caffeine_free_stream_info(struct caffeine_stream_info ** stream_info);
+char * caffeine_annotate_title(char const * title, enum caffeine_rating rating);
 
 bool caffeine_trickle_candidates(
 	caff_ice_candidates candidates,
 	size_t num_candidates,
-	struct caffeine_credentials * creds,
-	struct caffeine_stream_info const * stream_info);
+	char const * stream_url,
+	struct caffeine_credentials * creds);
 
-char * create_broadcast(
-	char const * title,
-	enum caffeine_rating rating,
-	char const * game_id,
+struct caffeine_heartbeat_response * caffeine_heartbeat_stream(
+	char const * stream_url,
+	struct caffeine_credentials * creds);
+
+void caffeine_free_heartbeat_response(
+	struct caffeine_heartbeat_response ** response);
+
+bool caffeine_update_broadcast_screenshot(
+	char const * broadcast_id,
 	uint8_t const * screenshot_data,
 	size_t screenshot_size,
 	struct caffeine_credentials * creds);
 
-struct caffeine_stage_response set_stage_live(
-	bool is_live,
-	char const * session_id,
-	char const * stage_id,
-	char const * stream_id,
-	char const * title,
-	enum caffeine_rating rating,
-	char const * game_id,
-	struct caffeine_credentials * creds);
+struct caffeine_feed * caffeine_get_stage_feed(
+	struct caffeine_stage * stage, char const * id);
+// Replaces any existing feeds, copies passed in data
+void caffeine_set_stage_feed(
+	struct caffeine_stage * stage, struct caffeine_feed const * feed);
+void caffeine_clear_stage_feeds(struct caffeine_stage * stage);
+void caffeine_free_stage(struct caffeine_stage ** stage);
 
-bool send_heartbeat(
-	char const * stage_id,
-	char const * signed_payload,
-	struct caffeine_credentials * creds);
+struct caffeine_stage_request * caffeine_copy_stage_request(
+	struct caffeine_stage_request const * request);
+void caffeine_free_stage_request(struct caffeine_stage_request ** request);
 
-bool update_broadcast(
-	char const * broadcast_id,
-	bool is_online,
-	char const * title,
-	enum caffeine_rating rating,
-	char const * game_id,
-	struct caffeine_credentials * creds);
+// If successful, updates request cursor and stage with the response values
+bool caffeine_request_stage_update(
+	struct caffeine_stage_request * request,
+	struct caffeine_credentials * creds,
+	double * retry_in);

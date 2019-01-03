@@ -32,14 +32,36 @@ enum state {
 	STOPPING,
 };
 
+struct caffeine_broadcast_info {
+	char * stream_url;
+	char * feed_id;
+	struct caffeine_stage_request * next_request;
+};
+
+static void caffeine_free_broadcast_info(struct caffeine_broadcast_info ** info)
+{
+	if (!info || !*info) {
+		return;
+	}
+
+	bfree((*info)->stream_url);
+	bfree((*info)->feed_id);
+	caffeine_free_stage_request(&(*info)->next_request);
+	bfree(*info);
+
+	*info = NULL;
+}
+
 struct caffeine_output
 {
 	obs_output_t * output;
 	caff_interface_handle interface;
 	caff_stream_handle stream;
-	struct caffeine_stream_info * stream_info;
+	struct caffeine_broadcast_info * broadcast_info;
 	pthread_mutex_t stream_mutex;
 	pthread_t broadcast_thread;
+	pthread_t longpoll_thread;
+	volatile bool is_mutating_feed;
 	struct obs_video_info video_info;
 
 	pthread_cond_t screenshot_cond;
@@ -189,6 +211,17 @@ static inline bool transition_state(
 	return result;
 }
 
+static void set_is_mutating_feed(
+	struct caffeine_output * context, bool is_mutating)
+{
+	os_atomic_set_bool(&context->is_mutating_feed, is_mutating);
+}
+
+static bool is_mutating_feed(struct caffeine_output * context)
+{
+	return os_atomic_load_bool(&context->is_mutating_feed);
+}
+
 static char const * caffeine_offer_generated(void * data, char const * sdp_offer);
 static bool caffeine_ice_gathered(void *data, caff_ice_candidates candidates, size_t num_candidates);
 static void caffeine_stream_started(void *data);
@@ -277,23 +310,95 @@ static char const * caffeine_offer_generated(
 	trace();
 	struct caffeine_output * context = data;
 
+	char * title = NULL;
+	char * sdp_answer = NULL;
+	char * feed_id = caffeine_generate_unique_id();
+
 	if (!require_state(context, STARTING))
-		return NULL;
+		goto setup_error;
 
 	obs_service_t * service = obs_output_get_service(context->output);
-	char const * stage_id =
-		obs_service_query(service, CAFFEINE_QUERY_STAGE_ID);
 	struct caffeine_credentials * creds =
 		obs_service_query(service, CAFFEINE_QUERY_CREDENTIALS);
+	char * username = bstrdup(
+		obs_service_query(service, CAFFEINE_QUERY_USERNAME));
+	char const * raw_title =
+		obs_service_query(service, CAFFEINE_QUERY_BROADCAST_TITLE);
+	enum caffeine_rating rating = (enum caffeine_rating)
+		obs_service_query(service, CAFFEINE_QUERY_BROADCAST_RATING);
 
-	struct caffeine_stream_info * stream_info =
-		caffeine_start_stream(stage_id, sdp_offer, creds);
+	title = caffeine_annotate_title(raw_title, rating);
+	char * client_id = caffeine_generate_unique_id();
+
+	// Make initial stage request to get a cursor
+
+	struct caffeine_stage_request * request =
+		bzalloc(sizeof(struct caffeine_stage_request));
+	request->username = username;
+	request->client_id = client_id;
+
+	if (!caffeine_request_stage_update(request, creds, NULL)) {
+		goto setup_error;
+	}
+
+	// Make request to add our feed and get a new broadcast id
+
+	caffeine_set_string(&request->stage->title, title);
+	request->stage->upsert_broadcast = true;
+	caffeine_set_string(&request->stage->broadcast_id, NULL);
+	request->stage->live = false;
+
+	struct caffeine_feed feed = {
+		.id = feed_id,
+		.client_id = client_id,
+		.role = "primary",
+		.volume = 1.0,
+		.capabilities = {
+			.video = true,
+			.audio = true
+		},
+		.stream = {
+			.sdp_offer = (char *)sdp_offer
+		}
+	};
+	caffeine_set_stage_feed(request->stage, &feed);
+
+	if (!caffeine_request_stage_update(request, creds, NULL)) {
+		goto setup_error;
+	}
+
+	// Get stream details
+
+	struct caffeine_feed * response_feed =
+		caffeine_get_stage_feed(request->stage, feed_id);
+	if (!response_feed
+	    || !response_feed->stream.sdp_answer
+	    || !response_feed->stream.url) {
+		goto setup_error;
+	}
+
+	sdp_answer = response_feed->stream.sdp_answer;
+
+	struct caffeine_broadcast_info * broadcast_info =
+		bzalloc(sizeof(struct caffeine_broadcast_info));
+
+	broadcast_info->stream_url = bstrdup(response_feed->stream.url);
+	broadcast_info->feed_id = feed_id;
+	broadcast_info->next_request = request;
 
 	pthread_mutex_lock(&context->stream_mutex);
-	context->stream_info = stream_info;
+	context->broadcast_info = broadcast_info;
 	pthread_mutex_unlock(&context->stream_mutex);
 
-	return stream_info ? stream_info->sdp_answer : NULL;
+setup_error:
+	if (!sdp_answer) {
+		caffeine_free_stage_request(&request);
+		bfree(feed_id);
+	}
+
+	bfree(title);
+
+	return sdp_answer;
 }
 
 /* Called from another thread, blocking OK */
@@ -310,19 +415,13 @@ static bool caffeine_ice_gathered(
 		obs_service_query(service, CAFFEINE_QUERY_CREDENTIALS);
 
 	pthread_mutex_lock(&context->stream_mutex);
-	struct caffeine_stream_info info = {
-		.stream_id = bstrdup(context->stream_info->stream_id),
-		.sdp_answer = bstrdup(context->stream_info->sdp_answer),
-		.signed_payload = bstrdup(context->stream_info->signed_payload),
-	};
+	char * stream_url = bstrdup(context->broadcast_info->stream_url);
 	pthread_mutex_unlock(&context->stream_mutex);
 
 	bool result = caffeine_trickle_candidates(
-		candidates, num_candidates, creds, context->stream_info);
+		candidates, num_candidates, stream_url, creds);
 
-	bfree(info.stream_id);
-	bfree(info.sdp_answer);
-	bfree(info.signed_payload);
+	bfree(stream_url);
 
 	return result;
 }
@@ -350,9 +449,9 @@ static void caffeine_stream_failed(void *data, caff_error error)
 	struct caffeine_output *context = data;
 
 	set_error(context->output, "%s: [%d] %s",
-        obs_module_text("ErrorStartStream"),
-        error,
-        caff_error_string(error));
+		obs_module_text("ErrorStartStream"),
+		error,
+		caff_error_string(error));
 
 	set_state(context, STOPPING);
 	caffeine_stop_stream(context);
@@ -360,34 +459,85 @@ static void caffeine_stream_failed(void *data, caff_error error)
 	obs_output_signal_stop(context->output, caffeine_to_obs_error(error));
 }
 
-#define OBS_GAME_ID "79"
-
-static char const * get_game_id(struct caffeine_games * games)
+static char const * get_game_id(struct caffeine_games * games, char * const process_name)
 {
-	char const * id = OBS_GAME_ID;
-	char * foreground_process = get_foreground_process_name();
-	if (games && foreground_process) {
-		/* TODO: this is inside out; should have process name at toplevel */
-		for (int game_index = 0; game_index < games->num_games; ++game_index) {
+	if (games && process_name) {
+		for (size_t game_index = 0; game_index < games->num_games; ++game_index) {
 			struct caffeine_game_info * info =
 				games->game_infos[game_index];
 			if (!info)
 				continue;
-			for (int pname_index = 0; pname_index < info->num_process_names; ++pname_index) {
+			for (size_t pname_index = 0; pname_index < info->num_process_names; ++pname_index) {
 				char const * pname = info->process_names[pname_index];
 				if (!pname)
-					continue;
-				if (strcmp(foreground_process, pname) == 0) {
-					id = info->id;
-					goto found;
+			    		continue;
+				if (strcmp(process_name, pname) == 0) {
+			    		return info->id;
 				}
 			}
 		}
 	}
-found:
-	bfree(foreground_process);
-	return id;
+
+	return NULL;
 }
+
+// Falls back to obs_id if no foreground game detected
+static char const * get_running_game_id(
+	struct caffeine_games * games, const char * fallback_id)
+{
+	char * foreground_process = get_foreground_process_name();
+	char const * id = get_game_id(games, foreground_process);
+	bfree(foreground_process);
+	return id ? id : fallback_id;
+}
+
+// Returns `true` if the feed's game id changed
+static bool caffeine_update_game_id(char const * game_id, struct caffeine_feed * feed)
+{
+	if (!feed) {
+		return false;
+	}
+
+	bool did_change = false;
+
+	if (game_id) {
+		if (!feed->content.id || strcmp(feed->content.id, game_id) != 0) {
+			caffeine_set_string(&feed->content.id, game_id);
+			did_change = true;
+		}
+
+		if (!feed->content.type) {
+			caffeine_set_string(&feed->content.type, "game");
+			did_change = true;
+		}
+	} else if (feed->content.id || feed->content.type) {
+		caffeine_set_string(&feed->content.id, NULL);
+		caffeine_set_string(&feed->content.type, NULL);
+		did_change = true;
+    	}
+
+	return did_change;
+}
+
+// Returns `true` if the feed's connection quality changed
+static bool caffeine_update_connection_quality(
+	char const * quality, struct caffeine_feed * feed)
+{
+	if (!quality) {
+		return false;
+	}
+
+	if (!feed->source_connection_quality
+	    || strcmp(quality, feed->source_connection_quality) != 0)
+	{
+		caffeine_set_string(&feed->source_connection_quality, quality);
+		return true;
+	}
+
+	return false;
+}
+
+static void * longpoll_thread(void * data);
 
 static void * broadcast_thread(void * data)
 {
@@ -401,30 +551,35 @@ static void * broadcast_thread(void * data)
 		pthread_mutex_unlock(&context->stream_mutex);
 		return NULL;
 	}
-	char * stream_id = bstrdup(context->stream_info->stream_id);
-	char * signed_payload = bstrdup(context->stream_info->signed_payload);
+
+	char * feed_id = bstrdup(context->broadcast_info->feed_id);
+	char * stream_url = bstrdup(context->broadcast_info->stream_url);
+	struct caffeine_stage_request * request =
+		context->broadcast_info->next_request;
+	context->broadcast_info->next_request = NULL;
 	pthread_mutex_unlock(&context->stream_mutex);
 
 	obs_service_t * service = obs_output_get_service(context->output);
-	char * stage_id = bstrdup(
-		obs_service_query(service, CAFFEINE_QUERY_STAGE_ID));
-	char * title = bstrdup(
-		obs_service_query(service, CAFFEINE_QUERY_BROADCAST_TITLE));
 	struct caffeine_credentials * creds =
 		obs_service_query(service, CAFFEINE_QUERY_CREDENTIALS);
-	enum caffeine_rating rating = (enum caffeine_rating)
-		obs_service_query(service, CAFFEINE_QUERY_BROADCAST_RATING);
 
 	struct caffeine_games * games = caffeine_get_supported_games();
-	char const * game_id = get_game_id(games);
+	char const * obs_game_id = get_game_id(games, "obs");
 
-	struct caffeine_stage_response stage_response =
-		set_stage_live(false, NULL, stage_id,
-			stream_id, title, rating, game_id, creds);
-	char * session_id = stage_response.session_id;
-	if (!session_id) {
-		caffeine_stream_failed(data, CAFF_ERROR_UNKNOWN);
-		goto get_session_error;
+	// Obtain broadcast id
+
+	char * broadcast_id = request->stage->broadcast_id;
+
+	for (int broadcast_id_retry_count = 0; !broadcast_id && broadcast_id_retry_count < 3; ++broadcast_id_retry_count) {
+		request->stage->upsert_broadcast = true;
+		if (!caffeine_request_stage_update(request, creds, NULL)
+		    || !caffeine_get_stage_feed(request->stage, feed_id))
+		{
+			caffeine_stream_failed(data, CAFF_ERROR_UNKNOWN);
+			goto broadcast_error;
+		}
+
+		broadcast_id = request->stage->broadcast_id;
 	}
 
 	pthread_mutex_lock(&context->screenshot_mutex);
@@ -433,14 +588,39 @@ static void * broadcast_thread(void * data)
 				&context->screenshot_mutex);
 	pthread_mutex_unlock(&context->screenshot_mutex);
 
-	char * broadcast_id =
-		create_broadcast(title, rating, game_id,
-			context->screenshot.data, context->screenshot.size,
-			creds);
-	if (broadcast_id == NULL) {
+	bool screenshot_success = caffeine_update_broadcast_screenshot(
+		broadcast_id,
+		context->screenshot.data,
+		context->screenshot.size,
+		creds);
+
+	if (!screenshot_success) {
 		caffeine_stream_failed(data, CAFF_ERROR_BROADCAST_FAILED);
-		goto create_broadcast_error;
+		goto broadcast_error;
 	}
+
+	// Set stage live with current game content
+
+	caffeine_update_game_id(
+		get_running_game_id(games, obs_game_id),
+		caffeine_get_stage_feed(request->stage, feed_id));
+	request->stage->live = true;
+
+	if (!caffeine_request_stage_update(request, creds, NULL)
+	    || !request->stage->live
+	    || !caffeine_get_stage_feed(request->stage, feed_id))
+	{
+		caffeine_stream_failed(data, CAFF_ERROR_BROADCAST_FAILED);
+		goto broadcast_error;
+	}
+
+	pthread_mutex_lock(&context->stream_mutex);
+	context->broadcast_info->next_request = request;
+	request = NULL;
+	pthread_mutex_unlock(&context->stream_mutex);
+
+	pthread_create(
+		&context->longpoll_thread, NULL, longpoll_thread, context);
 
 	/* TODO: use wall time instead of accumulation of sleep time */
 	long const heartbeat_interval = 5000; /* ms */
@@ -461,47 +641,202 @@ static void * broadcast_thread(void * data)
 
 		interval = 0;
 
-		game_id = get_game_id(games);
-		stage_response = set_stage_live(true, session_id, stage_id,
-				stream_id, title, rating, game_id, creds);
-		if (stage_response.status_code == 403) {
-			log_warn("%s", obs_module_text("StreamTakeover"));
-			caffeine_stream_failed(data, CAFF_ERROR_TAKEOVER);
-			goto taken_over;
+		caffeine_free_stage_request(&request);
+
+		pthread_mutex_lock(&context->stream_mutex);
+		request = caffeine_copy_stage_request(context->broadcast_info->next_request);
+		pthread_mutex_unlock(&context->stream_mutex);
+
+		if (!request) {
+			caffeine_stream_failed(data, CAFF_ERROR_UNKNOWN);
+			goto broadcast_error;
 		}
 
-		update_broadcast(broadcast_id, true, title, rating, game_id,
-				creds);
+		struct caffeine_feed * feed = caffeine_get_stage_feed(request->stage, feed_id);
+		if (!feed || !request->stage->live) {
+			caffeine_stream_failed(data, CAFF_ERROR_TAKEOVER);
+			goto broadcast_error;
+		}
 
-		if (send_heartbeat(stream_id, signed_payload, creds)) {
+		bool should_mutate_feed = false;
+
+		// Heartbeat stream
+
+		struct caffeine_heartbeat_response * heartbeat_response =
+			caffeine_heartbeat_stream(stream_url, creds);
+
+		if (heartbeat_response) {
+			should_mutate_feed =
+				caffeine_update_connection_quality(
+					heartbeat_response->connection_quality,
+					feed);
 			failures = 0;
+			caffeine_free_heartbeat_response(&heartbeat_response);
+		} else {
+			log_debug("Heartbeat failed");
+			++failures;
+			if (failures > max_failures) {
+				log_error("Heartbeat failed %d times; ending stream.",
+						  failures);
+				caffeine_stream_failed(data, CAFF_ERROR_DISCONNECTED);
+				break;
+			}
+		}
+
+		should_mutate_feed =
+			caffeine_update_game_id(
+				get_running_game_id(games, obs_game_id), feed)
+			|| should_mutate_feed;
+
+		if (!should_mutate_feed) {
 			continue;
 		}
-		log_debug("Heartbeat failed");
 
-		++failures;
-		if (failures > max_failures) {
-			log_error("Heartbeat failed %d times; ending stream.",
-				failures);
-			caffeine_stream_failed(data, CAFF_ERROR_DISCONNECTED);
-			break;
+		// Mutate the feed
+
+		set_is_mutating_feed(context, true);
+
+		if (!caffeine_request_stage_update(request, creds, NULL)) {
+			set_is_mutating_feed(context, false);
+			/*
+			 If we have a stream going but can't talk to
+			 the stage endpoint, retry the mutation next loop
+			*/
+			continue;
+		}
+
+		if (!request->stage->live
+		    || !caffeine_get_stage_feed(request->stage, feed_id))
+		{
+			caffeine_stream_failed(data, CAFF_ERROR_TAKEOVER);
+			goto broadcast_error;
+		}
+
+		pthread_mutex_lock(&context->stream_mutex);
+		caffeine_free_stage_request(&context->broadcast_info->next_request);
+		context->broadcast_info->next_request = request;
+		request = NULL;
+		pthread_mutex_unlock(&context->stream_mutex);
+		set_is_mutating_feed(context, false);
+	}
+
+	set_is_mutating_feed(context, true);
+
+	pthread_mutex_lock(&context->stream_mutex);
+	if (context->broadcast_info) {
+		caffeine_free_stage_request(&request);
+		request = context->broadcast_info->next_request;
+		context->broadcast_info->next_request = NULL;
+	}
+	pthread_mutex_unlock(&context->stream_mutex);
+
+	// Only set the stage offline if it contains our feed
+	if (request && caffeine_get_stage_feed(request->stage, feed_id)) {
+		request->stage->live = false;
+		caffeine_clear_stage_feeds(request->stage);
+
+		if (!caffeine_request_stage_update(request, creds, NULL)) {
+			caffeine_stream_failed(data, CAFF_ERROR_UNKNOWN);
 		}
 	}
 
-	set_stage_live(false, session_id, stage_id, stream_id, title, rating,
-			game_id, creds);
-	update_broadcast(broadcast_id, false, title, rating, game_id, creds);
-
-taken_over:
-	bfree(broadcast_id);
-create_broadcast_error:
-	bfree(session_id);
-get_session_error:
+broadcast_error:
+	bfree(stream_url);
+	bfree(feed_id);
+	caffeine_free_stage_request(&request);
 	caffeine_free_game_list(&games);
-	bfree(title);
-	bfree(stage_id);
-	bfree(signed_payload);
-	bfree(stream_id);
+	return NULL;
+}
+
+static void * longpoll_thread(void * data)
+{
+	// This thread is purely for hearbeating our feed.
+	// If the broadcast thread is making a mutation, this thread waits.
+
+	trace();
+	os_set_thread_name("Caffeine longpoll");
+
+	struct caffeine_output * context = data;
+
+	obs_service_t * service = obs_output_get_service(context->output);
+	struct caffeine_credentials * creds =
+		obs_service_query(service, CAFFEINE_QUERY_CREDENTIALS);
+
+	long retry_interval_ms = 0; /* ms */
+	long const check_interval = 100;
+
+	long interval = retry_interval_ms;
+
+	char * feed_id = NULL;
+
+	pthread_mutex_lock(&context->stream_mutex);
+	if (context->broadcast_info) {
+		feed_id = bstrdup(context->broadcast_info->feed_id);
+	}
+	pthread_mutex_unlock(&context->stream_mutex);
+
+	if (!feed_id) {
+		return NULL;
+	}
+
+	for (enum state state = get_state(context);
+	     state == ONLINE;
+	     os_sleep_ms(check_interval), state = get_state(context))
+	{
+		interval += check_interval;
+		if (interval < retry_interval_ms || is_mutating_feed(context))
+			continue;
+
+		struct caffeine_stage_request * request = NULL;
+
+		pthread_mutex_lock(&context->stream_mutex);
+		if (context->broadcast_info) {
+			request = caffeine_copy_stage_request(
+				context->broadcast_info->next_request);
+		}
+		pthread_mutex_unlock(&context->stream_mutex);
+
+		if (!request) {
+			break;
+		}
+
+		double retry_in = 0;
+
+		if (!caffeine_request_stage_update(request, creds, &retry_in)) {
+			/*
+			 If we have a stream going but can't talk to
+			 the stage endpoint, just continually retry
+			 with some waiting
+			*/
+			retry_interval_ms = 5000;
+			continue;
+		}
+
+		bool live_feed_is_still_present =
+			request->stage->live
+			&& caffeine_get_stage_feed(request->stage, feed_id);
+
+		pthread_mutex_lock(&context->stream_mutex);
+		if (context->broadcast_info) {
+			caffeine_free_stage_request(
+				&context->broadcast_info->next_request);
+			context->broadcast_info->next_request = request;
+			request = NULL;
+		}
+		pthread_mutex_unlock(&context->stream_mutex);
+
+		caffeine_free_stage_request(&request);
+
+		if (!live_feed_is_still_present) {
+			break;
+		}
+
+		interval = 0;
+		retry_interval_ms = (long)(retry_in * 1000);
+	}
+
+	bfree(feed_id);
+
 	return NULL;
 }
 
@@ -640,13 +975,13 @@ static void create_screenshot(
 
 	// Transform RGBA to RGB24
 	ret = sws_scale(
-			sws_context,
-			image_data,
-			image_data_linesize,
-			0,
-			frame->height,
-			frame->data,
-			frame->linesize);
+		sws_context,
+		image_data,
+		image_data_linesize,
+		0,
+		frame->height,
+		frame->data,
+		frame->linesize);
 
 	if (ret < 0) {
 		log_warn("Couldn't translate image format");
@@ -712,7 +1047,7 @@ static void caffeine_stop_stream(struct caffeine_output * context)
 	if (context->stream)
 		caff_end_stream(&context->stream);
 
-	caffeine_free_stream_info(&context->stream_info);
+	caffeine_free_broadcast_info(&context->broadcast_info);
 
 	if (context->screenshot.data != NULL) {
 		av_free_packet(&context->screenshot);
@@ -736,6 +1071,7 @@ static void caffeine_stop(void *data, uint64_t ts)
 	obs_output_t *output = context->output;
 
 	set_state(context, STOPPING);
+	pthread_join(context->longpoll_thread, NULL);
 	pthread_join(context->broadcast_thread, NULL);
 
 	caffeine_stop_stream(context);
@@ -753,6 +1089,30 @@ static void caffeine_destroy(void *data)
 	pthread_cond_destroy(&context->screenshot_cond);
 
 	bfree(data);
+}
+
+static float caffeine_get_congestion(void * data)
+{
+	struct caffeine_output * context = data;
+
+	bool is_good_network_quality = true;
+
+	pthread_mutex_lock(&context->stream_mutex);
+
+	if (context->broadcast_info && context->broadcast_info->next_request) {
+		struct caffeine_feed * feed =
+			caffeine_get_stage_feed(
+				context->broadcast_info->next_request->stage,
+				context->broadcast_info->feed_id);
+		if (feed && feed->source_connection_quality) {
+			is_good_network_quality =
+			strcmp(feed->source_connection_quality , "GOOD") == 0;
+		}
+	}
+
+	pthread_mutex_unlock(&context->stream_mutex);
+
+	return is_good_network_quality ? 0.f : 1.f;
 }
 
 char const * caffeine_get_username(void * data)
@@ -773,5 +1133,6 @@ struct obs_output_info caffeine_output_info = {
 	.raw_audio = caffeine_raw_audio,
 	.stop      = caffeine_stop,
 	.destroy   = caffeine_destroy,
+	.get_congestion = caffeine_get_congestion,
 	.get_username = caffeine_get_username,
 };
