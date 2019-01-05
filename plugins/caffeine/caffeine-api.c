@@ -733,6 +733,9 @@ static struct caffeine_games * do_caffeine_get_supported_games()
 
 	curl_easy_setopt(curl, CURLOPT_URL, GETGAMES_URL);
 
+	struct curl_slist * headers = caffeine_basic_headers(CONTENT_TYPE_JSON);
+	curl_easy_setopt(curl, CURLOPT_HTTPHEADER, headers);
+
 	struct dstr response_str;
 	dstr_init(&response_str);
 
@@ -826,6 +829,7 @@ json_parsed_error:
 json_failed_error:
 request_error:
 	dstr_free(&response_str);
+	curl_slist_free_all(headers);
 	curl_easy_cleanup(curl);
 curl_init_error:
 
