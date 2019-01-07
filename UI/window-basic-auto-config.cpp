@@ -358,7 +358,7 @@ void AutoConfigStreamPage::StreamSettingsChanged(bool refreshPropertiesView)
 
 	bool custom = qServiceType.toStdString().find("_custom") != std::string::npos;
 
-	blog(LOG_INFO, "service: %s", qServiceType.toStdString().c_str());
+	blog(LOG_DEBUG, "service: %s", qServiceType.toStdString().c_str());
 
 	/* Reconstruct properties view */
 	if (refreshPropertiesView) {
@@ -382,7 +382,7 @@ void AutoConfigStreamPage::StreamSettingsChanged(bool refreshPropertiesView)
 		streamProperties->setMinimumHeight(200);
 	}
 	const char* currentSettings = obs_data_get_json(serviceSettings);
-	blog(LOG_INFO, "%s", currentSettings);
+	blog(LOG_DEBUG, "%s", currentSettings);
 
 	UpdateBandwidthTest();
 	UpdateBitrate();
@@ -527,15 +527,15 @@ bool AutoConfigStreamPage::validatePage()
 
 	std::string qServiceTypeName = ui->streamType->currentText().toStdString();
 
-	blog(LOG_INFO, "type: %s", qServiceType.c_str());
-	blog(LOG_INFO, "name: %s", qServiceTypeName.c_str());
+	blog(LOG_DEBUG, "type: %s", qServiceType.c_str());
+	blog(LOG_DEBUG, "name: %s", qServiceTypeName.c_str());
 
 	wiz->customServer = qServiceType.find("_custom") != std::string::npos;
 
 	const char *serverType = qServiceType.c_str();
 
 	const char *json_settings = obs_data_get_json(serviceSettings);
-	blog(LOG_INFO, "test_settings: %s", json_settings);
+	blog(LOG_DEBUG, "test_settings: %s", json_settings);
 
 	if (!wiz->customServer) {
 		obs_data_set_string(service_settings, "service",
@@ -564,8 +564,8 @@ bool AutoConfigStreamPage::validatePage()
 	std::string server = obs_data_get_string(serviceSettings, "server");
 	wiz->server = server;
 
-	blog(LOG_INFO, "name: %s", wiz->serverName.c_str());
-	blog(LOG_INFO, "addr: %s", wiz->server.c_str());
+	blog(LOG_DEBUG, "name: %s", wiz->serverName.c_str());
+	blog(LOG_DEBUG, "addr: %s", wiz->server.c_str());
 
 	if (wiz->customServer)
 		wiz->serverName = wiz->server;
@@ -619,7 +619,7 @@ static bool validateRequirements(obs_data_t *settings)
 	obs_data_item_t *item;
 	obs_data_item_t *test_item;
 	const char *json_settings = obs_data_get_json(settings);
-	blog(LOG_INFO, "%s", json_settings);
+	blog(LOG_DEBUG, "%s", json_settings);
 
 	for (item = obs_data_first(settings); item; obs_data_item_next(&item)) {
 		obs_data_type item_type = obs_data_item_gettype(item);
@@ -646,11 +646,11 @@ static bool validateRequirements(obs_data_t *settings)
 		test_item = obs_data_item_byname(settings, name);
 
 		if (!obs_data_item_has_user_value(test_item)) {
-			blog(LOG_INFO, "%s not found", name);
+			blog(LOG_DEBUG, "%s not found", name);
 			obs_data_item_release(&test_item);
 			return false;
 		}
-		blog(LOG_INFO, "%s found", name);
+		blog(LOG_DEBUG, "%s found", name);
 		obs_data_item_release(&test_item);
 		return true;
 	} else if (type == OBS_DATA_OBJECT) {
@@ -661,23 +661,23 @@ static bool validateRequirements(obs_data_t *settings)
 
 	requirementsObj = obs_data_get_obj(settings, "requirements");
 	const char *json = obs_data_get_json(requirementsObj);
-	blog(LOG_INFO, "%s", json);
+	blog(LOG_DEBUG, "%s", json);
 	for (item = obs_data_first(requirementsObj); item; obs_data_item_next(&item)) {
 		enum obs_data_type type = obs_data_item_gettype(item);
 		const char *name = obs_data_item_get_name(item);
-		blog(LOG_INFO, "%s required", name);
+		blog(LOG_DEBUG, "%s required", name);
 		if (!obs_data_item_has_user_value(item))
 			return false;
 
 		test_item = obs_data_item_byname(settings, name);
 
 		if (!obs_data_item_has_user_value(test_item)) {
-			blog(LOG_INFO, "%s not found", name);
+			blog(LOG_DEBUG, "%s not found", name);
 			obs_data_item_release(&test_item);
 			return false;
 		}
 		obs_data_item_release(&test_item);
-		blog(LOG_INFO, "%s found", name);
+		blog(LOG_DEBUG, "%s found", name);
 	}
 
 	return true;
