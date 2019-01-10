@@ -155,4 +155,5 @@ void caffeine_free_stage_request(struct caffeine_stage_request ** request);
 bool caffeine_request_stage_update(
 	struct caffeine_stage_request * request,
 	struct caffeine_credentials * creds,
-	double * retry_in);
+	double * retry_in,
+	bool * is_out_of_capacity);
