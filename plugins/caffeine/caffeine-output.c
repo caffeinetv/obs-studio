@@ -337,7 +337,7 @@ static char const * caffeine_offer_generated(
 	request->username = username;
 	request->client_id = client_id;
 
-	if (!caffeine_request_stage_update(request, creds, NULL)) {
+	if (!caffeine_request_stage_update(request, creds, NULL, NULL)) {
 		goto setup_error;
 	}
 
@@ -363,7 +363,11 @@ static char const * caffeine_offer_generated(
 	};
 	caffeine_set_stage_feed(request->stage, &feed);
 
-	if (!caffeine_request_stage_update(request, creds, NULL)) {
+	bool is_out_of_capacity = false;
+	if (!caffeine_request_stage_update(request, creds, NULL, &is_out_of_capacity)) {
+		if (is_out_of_capacity) {
+			set_error(context->output, "%s", obs_module_text("ErrorOutOfCapacity"));
+		}
 		goto setup_error;
 	}
 
@@ -448,10 +452,12 @@ static void caffeine_stream_failed(void *data, caff_error error)
 {
 	struct caffeine_output *context = data;
 
-	set_error(context->output, "%s: [%d] %s",
-		obs_module_text("ErrorStartStream"),
-		error,
-		caff_error_string(error));
+	if (!obs_output_get_last_error(context->output)) {
+		set_error(context->output, "%s: [%d] %s",
+			obs_module_text("ErrorStartStream"),
+			error,
+			caff_error_string(error));
+	}
 
 	set_state(context, STOPPING);
 	caffeine_stop_stream(context);
@@ -572,7 +578,7 @@ static void * broadcast_thread(void * data)
 
 	for (int broadcast_id_retry_count = 0; !broadcast_id && broadcast_id_retry_count < 3; ++broadcast_id_retry_count) {
 		request->stage->upsert_broadcast = true;
-		if (!caffeine_request_stage_update(request, creds, NULL)
+		if (!caffeine_request_stage_update(request, creds, NULL, NULL)
 		    || !caffeine_get_stage_feed(request->stage, feed_id))
 		{
 			caffeine_stream_failed(data, CAFF_ERROR_UNKNOWN);
@@ -606,7 +612,7 @@ static void * broadcast_thread(void * data)
 		caffeine_get_stage_feed(request->stage, feed_id));
 	request->stage->live = true;
 
-	if (!caffeine_request_stage_update(request, creds, NULL)
+	if (!caffeine_request_stage_update(request, creds, NULL, NULL)
 	    || !request->stage->live
 	    || !caffeine_get_stage_feed(request->stage, feed_id))
 	{
@@ -696,7 +702,7 @@ static void * broadcast_thread(void * data)
 
 		set_is_mutating_feed(context, true);
 
-		if (!caffeine_request_stage_update(request, creds, NULL)) {
+		if (!caffeine_request_stage_update(request, creds, NULL, NULL)) {
 			set_is_mutating_feed(context, false);
 			/*
 			 If we have a stream going but can't talk to
@@ -735,7 +741,7 @@ static void * broadcast_thread(void * data)
 		request->stage->live = false;
 		caffeine_clear_stage_feeds(request->stage);
 
-		if (!caffeine_request_stage_update(request, creds, NULL)) {
+		if (!caffeine_request_stage_update(request, creds, NULL, NULL)) {
 			caffeine_stream_failed(data, CAFF_ERROR_UNKNOWN);
 		}
 	}
@@ -802,7 +808,7 @@ static void * longpoll_thread(void * data)
 
 		double retry_in = 0;
 
-		if (!caffeine_request_stage_update(request, creds, &retry_in)) {
+		if (!caffeine_request_stage_update(request, creds, &retry_in, NULL)) {
 			/*
 			 If we have a stream going but can't talk to
 			 the stage endpoint, just continually retry

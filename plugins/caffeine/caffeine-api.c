@@ -1596,6 +1596,11 @@ json_parsed_error:
     	return response;
 }
 
+static bool is_out_of_capacity_failure_type(char const * type)
+{
+	return type && strcmp(type, "OutOfCapacity") == 0;
+}
+
 static struct caffeine_stage_response_result * do_caffeine_stage_update(
 	struct caffeine_stage_request request,
 	struct caffeine_credentials * creds)
@@ -1697,7 +1702,7 @@ static struct caffeine_stage_response_result * do_caffeine_stage_update(
 		 As of now, the only failure response we want to return and
 		 not retry is `OutOfCapacity`
 		*/
-		if (!type || strcmp(type, "OutOfCapacity") != 0) {
+		if (!is_out_of_capacity_failure_type(type)) {
 			goto standard_failure_response;
 		}
 
@@ -1766,7 +1771,8 @@ static void transfer_stage_data(
 bool caffeine_request_stage_update(
 	struct caffeine_stage_request * request,
 	struct caffeine_credentials * creds,
-	double * retry_in)
+	double * retry_in,
+	bool * is_out_of_capacity)
 {
 	struct caffeine_stage_response_result * result =
 	caffeine_stage_update(*request, creds);
@@ -1777,6 +1783,12 @@ bool caffeine_request_stage_update(
 			*retry_in = result->response->retry_in;
 		}
 		transfer_stage_data(&result->response, request);
+	} else if (is_out_of_capacity
+		   && result
+		   && result->failure
+		   && is_out_of_capacity_failure_type(result->failure->type))
+	{
+		*is_out_of_capacity = true;
 	}
 
 	caffeine_free_stage_response_result(&result);
