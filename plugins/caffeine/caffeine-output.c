@@ -63,6 +63,9 @@ struct caffeine_output
 	pthread_t longpoll_thread;
 	volatile bool is_mutating_feed;
 	struct obs_video_info video_info;
+	uint64_t start_timestamp;
+	size_t audio_planes;
+	size_t audio_size;
 
 	pthread_cond_t screenshot_cond;
 	pthread_mutex_t screenshot_mutex;
@@ -270,6 +273,11 @@ static bool caffeine_start(void *data)
 		.samples_per_sec = 48000
 	};
 	obs_output_set_audio_conversion(context->output, &conversion);
+
+	context->audio_planes =
+		get_audio_planes(conversion.format, conversion.speakers);
+	context->audio_size =
+		get_audio_size(conversion.format, conversion.speakers, 1);
 
 	if (!obs_output_can_begin_data_capture(context->output, 0))
 		return false;
@@ -867,6 +875,9 @@ static void caffeine_raw_video(void *data, struct video_data *frame)
 	caff_format caff_format =
 		obs_to_caffeine_format(context->video_info.output_format);
 
+	if (!context->start_timestamp)
+		context->start_timestamp = frame->timestamp;
+
 	pthread_mutex_lock(&context->screenshot_mutex);
 	if (context->screenshot_needed)
 		create_screenshot(context, width, height, frame->data,
@@ -1030,12 +1041,43 @@ err_no_image_data:
 	pthread_cond_signal(&context->screenshot_cond);
 }
 
+static bool prepare_audio(struct caffeine_output *context,
+		const struct audio_data *frame, struct audio_data *output)
+{
+	*output = *frame;
+
+	if (frame->timestamp < context->start_timestamp) {
+		uint64_t duration = (uint64_t)frame->frames * 1000000000 / (uint64_t)48000;
+		uint64_t end_ts = (frame->timestamp + duration);
+		uint64_t cutoff;
+
+		if (end_ts <= context->start_timestamp)
+			return false;
+
+		cutoff = context->start_timestamp - frame->timestamp;
+		output->timestamp += cutoff;
+
+		cutoff = cutoff * (uint64_t)48000 / 1000000000;
+
+		for (size_t i = 0; i < context->audio_planes; i++)
+			output->data[i] += context->audio_size * (uint32_t)cutoff;
+		output->frames -= (uint32_t)cutoff;
+	}
+
+	return true;
+}
+
 static void caffeine_raw_audio(void *data, struct audio_data *frames)
 {
 #ifdef TRACE_FRAMES
 	trace();
 #endif
 	struct caffeine_output *context = data;
+	struct audio_data in;
+
+	if (!context->start_timestamp)
+		return;
+	if (!prepare_audio(context, frames, &in))
 
 	pthread_mutex_lock(&context->stream_mutex);
 	if (context->stream)
