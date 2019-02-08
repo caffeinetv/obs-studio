@@ -2614,36 +2614,51 @@ void OBSBasic::UpdateSceneSelection(OBSSource source)
 {
 	if (source) {
 		obs_scene_t *scene = obs_scene_from_source(source);
-		QString name = QT_UTF8(obs_source_get_name(source));
 
 		if (!scene)
 			return;
 
+		OBSData sceneSettings = obs_source_get_settings(source);
+		obs_data_release(sceneSettings);
+
+		QString mixerScene = QT_UTF8(
+			obs_data_get_string(sceneSettings, "mixerScene"));
+		QString name = QT_UTF8(obs_source_get_name(source));
+
 		// Remove old entries
 		bool thisExists = false;
+		int targetIndex = 0;
 		for (int i = 1; i < ui->mixerSceneDropdown->count(); ++i) {
-			QString mixerName = ui->mixerSceneDropdown->itemText(i);
-			if (mixerName == name) {
-				ui->mixerSceneDropdown->setCurrentIndex(i);
+			QString itemName = ui->mixerSceneDropdown->itemText(i);
+			if (itemName == mixerScene) {
+				targetIndex = i;
+			}
+			if (itemName == name) {
 				thisExists = true;
 				continue;
 			}
 
 			OBSSource mixerScene =
-				obs_get_source_by_name(QT_TO_UTF8(mixerName));
+				obs_get_source_by_name(QT_TO_UTF8(itemName));
 			obs_source_release(mixerScene);
 			OBSData settings = obs_source_get_settings(mixerScene);
 			obs_data_release(settings);
 			OBSData mixerSettings =
 				obs_data_get_obj(settings, "mixerSettings");
 			obs_data_release(mixerSettings);
-			if (!mixerSettings)
+			if (!mixerSettings) {
+				sceneChanging = true;
 				ui->mixerSceneDropdown->removeItem(i--);
+				sceneChanging = false;
+			}
 		}
 
 		if (!thisExists) {
+			sceneChanging = true;
 			ui->mixerSceneDropdown->insertItem(1, name);
+			sceneChanging = false;
 		}
+		ui->mixerSceneDropdown->setCurrentIndex(targetIndex);
 
 		QList<QListWidgetItem*> items =
 			ui->scenes->findItems(name, Qt::MatchExactly);
@@ -2826,33 +2841,40 @@ void OBSBasic::MixerRenameSource()
 
 void OBSBasic::MixerSceneChanged(int index)
 {
+	if (sceneChanging)
+		return;
+
 	OBSScene scene = GetCurrentScene();
 	OBSSource source = obs_scene_get_source(scene);
 	OBSData settings = obs_source_get_settings(source);
 	obs_data_release(settings);
-	const char *name = obs_source_get_name(source);
-	QString selectedName = ui->mixerSceneDropdown->itemText(index);
-
 	if (index == 0) {
 		obs_data_erase(settings, "mixerScene");
+		obs_data_erase(settings, "mixerSettings");
 		ApplyAudioSaveData(globalAudioSettings);
 		return;
 	}
+
+	QString selectedName = ui->mixerSceneDropdown->itemText(index);
 
 	obs_data_set_string(settings, "mixerScene", QT_TO_UTF8(selectedName));
 	OBSSource selectedSource =
 		obs_get_source_by_name(QT_TO_UTF8(selectedName));
 	obs_source_release(selectedSource);
+
 	OBSData selectedSettings = obs_source_get_settings(selectedSource);
 	obs_data_release(selectedSettings);
 	OBSData selectedMixerSettings =
 		obs_data_get_obj(selectedSettings, "mixerSettings");
-	obs_data_release(selectedMixerSettings);
 
-	if (selectedMixerSettings)
-		ApplyAudioSaveData(selectedMixerSettings);
-	else
+	if (!selectedMixerSettings) {
+		selectedMixerSettings = obs_data_create();
 		CopyAudioSaveData(globalAudioSettings, selectedMixerSettings);
+		obs_data_set_obj(selectedSettings, "mixerSettings",
+			selectedMixerSettings);
+	}
+	obs_data_release(selectedMixerSettings);
+	ApplyAudioSaveData(selectedMixerSettings);
 }
 
 void OBSBasic::VolControlContextMenu()
