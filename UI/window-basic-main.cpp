@@ -661,23 +661,22 @@ static void ApplyAudioSaveData(OBSData container) {
 // TODO
 }
 
-static void CopyObj(OBSData source, OBSData dest, const char *name) {
+static void CopyObj(OBSData dest, OBSData source, const char *name) {
 	OBSData sourceObj = obs_data_get_obj(source, name);
 	obs_data_release(sourceObj);
-	const char *json = obs_data_get_json(sourceObj);
-	OBSData destObj = obs_data_create_from_json(json);
+	OBSData destObj = obs_data_create();
 	obs_data_release(destObj);
-	obs_data_set_obj(dest, name, destObj);
+	obs_data_apply(destObj, sourceObj);
 }
 
 static void CopyAudioSaveData(OBSData source, OBSData dest)
 {
-	CopyObj(source, dest, DESKTOP_AUDIO_1);
-	CopyObj(source, dest, DESKTOP_AUDIO_2);
-	CopyObj(source, dest, AUX_AUDIO_1);
-	CopyObj(source, dest, AUX_AUDIO_2);
-	CopyObj(source, dest, AUX_AUDIO_3);
-	CopyObj(source, dest, AUX_AUDIO_4);
+	CopyObj(dest, source,  DESKTOP_AUDIO_1);
+	CopyObj(dest, source,  DESKTOP_AUDIO_2);
+	CopyObj(dest, source,  AUX_AUDIO_1);
+	CopyObj(dest, source,  AUX_AUDIO_2);
+	CopyObj(dest, source,  AUX_AUDIO_3);
+	CopyObj(dest, source,  AUX_AUDIO_4);
 }
 
 static inline bool HasAudioDevices(const char *source_id)
