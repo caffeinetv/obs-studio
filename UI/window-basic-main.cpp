@@ -310,9 +310,8 @@ OBSBasic::OBSBasic(QWidget *parent)
 	renameScene->setShortcut({Qt::Key_F2});
 	renameSource->setShortcut({Qt::Key_F2});
 #endif
-	connect(ui->mixerSceneDropdown,
-			SIGNAL(currentIndexChanged(int index)), this,
-			SLOT(MixerSceneChanged(int index)));
+	connect(ui->mixerSceneDropdown, SIGNAL(currentIndexChanged(int)),
+			this, SLOT(MixerSceneChanged(int)));
 
 	auto addNudge = [this](const QKeySequence &seq, const char *s)
 	{
@@ -658,6 +657,29 @@ static void LoadAudioDevice(const char *name, int channel, obs_data_t *parent)
 	obs_data_release(data);
 }
 
+static void ApplyAudioSaveData(OBSData container) {
+// TODO
+}
+
+static void CopyObj(OBSData source, OBSData dest, const char *name) {
+	OBSData sourceObj = obs_data_get_obj(source, name);
+	obs_data_release(sourceObj);
+	const char *json = obs_data_get_json(sourceObj);
+	OBSData destObj = obs_data_create_from_json(json);
+	obs_data_release(destObj);
+	obs_data_set_obj(dest, name, destObj);
+}
+
+static void CopyAudioSaveData(OBSData source, OBSData dest)
+{
+	CopyObj(source, dest, DESKTOP_AUDIO_1);
+	CopyObj(source, dest, DESKTOP_AUDIO_2);
+	CopyObj(source, dest, AUX_AUDIO_1);
+	CopyObj(source, dest, AUX_AUDIO_2);
+	CopyObj(source, dest, AUX_AUDIO_3);
+	CopyObj(source, dest, AUX_AUDIO_4);
+}
+
 static inline bool HasAudioDevices(const char *source_id)
 {
 	const char *output_id = source_id;
@@ -882,18 +904,13 @@ void OBSBasic::Load(const char *file)
 	if (!globalAudioSettings) {
 		// Upgrade from old format
 		globalAudioSettings = obs_data_create();
-		auto moveSetting = [&](const char *name) {
-			OBSData oldSettings = obs_data_get_obj(data, name);
-			obs_data_release(oldSettings);
-			obs_data_set_obj(globalAudioSettings, name, oldSettings);
-			obs_data_erase(data, name);
-		};
-		moveSetting(DESKTOP_AUDIO_1);
-		moveSetting(DESKTOP_AUDIO_2);
-		moveSetting(AUX_AUDIO_1);
-		moveSetting(AUX_AUDIO_2);
-		moveSetting(AUX_AUDIO_3);
-		moveSetting(AUX_AUDIO_4);
+		CopyAudioSaveData(data, globalAudioSettings);
+		obs_data_erase(data, DESKTOP_AUDIO_1);
+		obs_data_erase(data, DESKTOP_AUDIO_2);
+		obs_data_erase(data, AUX_AUDIO_1);
+		obs_data_erase(data, AUX_AUDIO_2);
+		obs_data_erase(data, AUX_AUDIO_3);
+		obs_data_erase(data, AUX_AUDIO_4);
 	}
 	obs_data_release(globalAudioSettings);
 
@@ -2604,7 +2621,7 @@ void OBSBasic::UpdateSceneSelection(OBSSource source)
 
 		// Remove old entries
 		bool thisExists = false;
-		for (int i = 1; i < ui->mixerSceneDropdown->count();) {
+		for (int i = 1; i < ui->mixerSceneDropdown->count(); ++i) {
 			QString mixerName = ui->mixerSceneDropdown->itemText(i);
 			if (mixerName == name) {
 				ui->mixerSceneDropdown->setCurrentIndex(i);
@@ -2620,10 +2637,8 @@ void OBSBasic::UpdateSceneSelection(OBSSource source)
 			OBSData mixerSettings =
 				obs_data_get_obj(settings, "mixerSettings");
 			obs_data_release(mixerSettings);
-			if (mixerSettings)
-				++i;
-			else
-				ui->mixerSceneDropdown->removeItem(i);
+			if (!mixerSettings)
+				ui->mixerSceneDropdown->removeItem(i--);
 		}
 
 		if (!thisExists) {
@@ -2813,7 +2828,6 @@ void OBSBasic::MixerSceneChanged(int index)
 {
 	OBSScene scene = GetCurrentScene();
 	OBSSource source = obs_scene_get_source(scene);
-	obs_source_release(source);
 	OBSData settings = obs_source_get_settings(source);
 	obs_data_release(settings);
 	const char *name = obs_source_get_name(source);
@@ -2821,16 +2835,24 @@ void OBSBasic::MixerSceneChanged(int index)
 
 	if (index == 0) {
 		obs_data_erase(settings, "mixerScene");
-		if (selectedName == QT_UTF8(name))
-			obs_data_erase(settings, "mixerSettings");
+		ApplyAudioSaveData(globalAudioSettings);
+		return;
 	}
-	else {
-		obs_data_set_string(settings, "mixerScene",
-				QT_TO_UTF8(selectedName));
-		if (selectedName == QT_UTF8(name))
-			obs_data_set_obj(settings, "mixerSettings",
-				GenerateAudioSaveData());
-	}
+
+	obs_data_set_string(settings, "mixerScene", QT_TO_UTF8(selectedName));
+	OBSSource selectedSource =
+		obs_get_source_by_name(QT_TO_UTF8(selectedName));
+	obs_source_release(selectedSource);
+	OBSData selectedSettings = obs_source_get_settings(selectedSource);
+	obs_data_release(selectedSettings);
+	OBSData selectedMixerSettings =
+		obs_data_get_obj(selectedSettings, "mixerSettings");
+	obs_data_release(selectedMixerSettings);
+
+	if (selectedMixerSettings)
+		ApplyAudioSaveData(selectedMixerSettings);
+	else
+		CopyAudioSaveData(globalAudioSettings, selectedMixerSettings);
 }
 
 void OBSBasic::VolControlContextMenu()
