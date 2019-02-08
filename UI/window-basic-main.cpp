@@ -310,6 +310,9 @@ OBSBasic::OBSBasic(QWidget *parent)
 	renameScene->setShortcut({Qt::Key_F2});
 	renameSource->setShortcut({Qt::Key_F2});
 #endif
+	connect(ui->mixerSceneDropdown,
+			SIGNAL(currentIndexChanged(int index)), this,
+			SLOT(MixerSceneChanged(int index)));
 
 	auto addNudge = [this](const QKeySequence &seq, const char *s)
 	{
@@ -373,21 +376,30 @@ OBSBasic::OBSBasic(QWidget *parent)
 	statsDock->move(newPos);
 }
 
-static void SaveAudioDevice(const char *name, int channel, obs_data_t *parent,
-		vector<OBSSource> &audioSources)
+static void SaveAudioDevice(const char *name, int channel, obs_data_t *parent)
 {
 	obs_source_t *source = obs_get_output_source(channel);
 	if (!source)
 		return;
 
-	audioSources.push_back(source);
-
 	obs_data_t *data = obs_save_source(source);
-
 	obs_data_set_obj(parent, name, data);
-
 	obs_data_release(data);
 	obs_source_release(source);
+}
+
+static OBSData GenerateAudioSaveData() {
+	OBSData audioSaveData = obs_data_create();
+	obs_data_release(audioSaveData);
+
+	SaveAudioDevice(DESKTOP_AUDIO_1, 1, audioSaveData);
+	SaveAudioDevice(DESKTOP_AUDIO_2, 2, audioSaveData);
+	SaveAudioDevice(AUX_AUDIO_1,     3, audioSaveData);
+	SaveAudioDevice(AUX_AUDIO_2,     4, audioSaveData);
+	SaveAudioDevice(AUX_AUDIO_3,     5, audioSaveData);
+	SaveAudioDevice(AUX_AUDIO_4,     6, audioSaveData);
+
+	return audioSaveData;
 }
 
 static obs_data_t *GenerateSaveData(obs_data_array_t *sceneOrder,
@@ -398,15 +410,8 @@ static obs_data_t *GenerateSaveData(obs_data_array_t *sceneOrder,
 {
 	obs_data_t *saveData = obs_data_create();
 
-	vector<OBSSource> audioSources;
-	audioSources.reserve(5);
-
-	SaveAudioDevice(DESKTOP_AUDIO_1, 1, saveData, audioSources);
-	SaveAudioDevice(DESKTOP_AUDIO_2, 2, saveData, audioSources);
-	SaveAudioDevice(AUX_AUDIO_1,     3, saveData, audioSources);
-	SaveAudioDevice(AUX_AUDIO_2,     4, saveData, audioSources);
-	SaveAudioDevice(AUX_AUDIO_3,     5, saveData, audioSources);
-	SaveAudioDevice(AUX_AUDIO_4,     6, saveData, audioSources);
+	OBSData audioSaveData = GenerateAudioSaveData();
+	obs_data_set_obj(saveData, "audioSaveData", audioSaveData);
 
 	/* -------------------------------- */
 	/* save non-group sources           */
@@ -415,9 +420,10 @@ static obs_data_t *GenerateSaveData(obs_data_array_t *sceneOrder,
 	{
 		if (obs_source_is_group(source))
 			return false;
-
-		return find(begin(audioSources), end(audioSources), source) ==
-				end(audioSources);
+		const char *name = obs_source_get_name(source);
+		OBSData isSaved = obs_data_get_obj(audioSaveData, name);
+		obs_data_release(isSaved);
+		return !isSaved;
 	};
 	using FilterAudioSources_t = decltype(FilterAudioSources);
 
@@ -872,12 +878,33 @@ void OBSBasic::Load(const char *file)
 	if (!name || !*name)
 		name = curSceneCollection;
 
-	LoadAudioDevice(DESKTOP_AUDIO_1, 1, data);
-	LoadAudioDevice(DESKTOP_AUDIO_2, 2, data);
-	LoadAudioDevice(AUX_AUDIO_1,     3, data);
-	LoadAudioDevice(AUX_AUDIO_2,     4, data);
-	LoadAudioDevice(AUX_AUDIO_3,     5, data);
-	LoadAudioDevice(AUX_AUDIO_4,     6, data);
+	globalAudioSettings = obs_data_get_obj(data, "audioSaveData");
+	if (!globalAudioSettings) {
+		// Upgrade from old format
+		globalAudioSettings = obs_data_create();
+		auto moveSetting = [&](const char *name) {
+			OBSData oldSettings = obs_data_get_obj(data, name);
+			obs_data_release(oldSettings);
+			obs_data_set_obj(globalAudioSettings, name, oldSettings);
+			obs_data_erase(data, name);
+		};
+		moveSetting(DESKTOP_AUDIO_1);
+		moveSetting(DESKTOP_AUDIO_2);
+		moveSetting(AUX_AUDIO_1);
+		moveSetting(AUX_AUDIO_2);
+		moveSetting(AUX_AUDIO_3);
+		moveSetting(AUX_AUDIO_4);
+	}
+	obs_data_release(globalAudioSettings);
+
+	LoadAudioDevice(DESKTOP_AUDIO_1, 1, globalAudioSettings);
+	LoadAudioDevice(DESKTOP_AUDIO_2, 2, globalAudioSettings);
+	LoadAudioDevice(AUX_AUDIO_1,     3, globalAudioSettings);
+	LoadAudioDevice(AUX_AUDIO_2,     4, globalAudioSettings);
+	LoadAudioDevice(AUX_AUDIO_3,     5, globalAudioSettings);
+	LoadAudioDevice(AUX_AUDIO_4,     6, globalAudioSettings);
+
+	ui->mixerSceneDropdown->addItem("Global"); // TODO localize
 
 	if (!sources) {
 		sources = groups;
@@ -2420,6 +2447,14 @@ void OBSBasic::AddScene(OBSSource source)
 	SetOBSRef(item, OBSScene(scene));
 	ui->scenes->addItem(item);
 
+	OBSData settings(obs_source_get_settings(source));
+	obs_data_release(settings);
+	OBSData mixerSettings(obs_data_get_obj(settings, "mixerSettings"));
+	obs_data_release(mixerSettings);
+	if (mixerSettings) {
+		ui->mixerSceneDropdown->addItem(QT_UTF8(name));
+	}
+
 	obs_hotkey_register_source(source, "OBSBasic.SelectScene",
 			Str("Basic.Hotkeys.SelectScene"),
 			[](void *data,
@@ -2487,6 +2522,10 @@ void OBSBasic::AddScene(OBSSource source)
 void OBSBasic::RemoveScene(OBSSource source)
 {
 	obs_scene_t *scene = obs_scene_from_source(source);
+	QString name = QT_UTF8(obs_source_get_name(source));
+	int mixerItem = ui->mixerSceneDropdown->findText(name);
+	if (mixerItem >= 0)
+		ui->mixerSceneDropdown->removeItem(mixerItem);
 
 	QListWidgetItem *sel = nullptr;
 	int count = ui->scenes->count();
@@ -2558,13 +2597,41 @@ void OBSBasic::UpdateSceneSelection(OBSSource source)
 {
 	if (source) {
 		obs_scene_t *scene = obs_scene_from_source(source);
-		const char *name = obs_source_get_name(source);
+		QString name = QT_UTF8(obs_source_get_name(source));
 
 		if (!scene)
 			return;
 
+		// Remove old entries
+		bool thisExists = false;
+		for (int i = 1; i < ui->mixerSceneDropdown->count();) {
+			QString mixerName = ui->mixerSceneDropdown->itemText(i);
+			if (mixerName == name) {
+				ui->mixerSceneDropdown->setCurrentIndex(i);
+				thisExists = true;
+				continue;
+			}
+
+			OBSSource mixerScene =
+				obs_get_source_by_name(QT_TO_UTF8(mixerName));
+			obs_source_release(mixerScene);
+			OBSData settings = obs_source_get_settings(mixerScene);
+			obs_data_release(settings);
+			OBSData mixerSettings =
+				obs_data_get_obj(settings, "mixerSettings");
+			obs_data_release(mixerSettings);
+			if (mixerSettings)
+				++i;
+			else
+				ui->mixerSceneDropdown->removeItem(i);
+		}
+
+		if (!thisExists) {
+			ui->mixerSceneDropdown->insertItem(1, name);
+		}
+
 		QList<QListWidgetItem*> items =
-			ui->scenes->findItems(QT_UTF8(name), Qt::MatchExactly);
+			ui->scenes->findItems(name, Qt::MatchExactly);
 
 		if (items.count()) {
 			sceneChanging = true;
@@ -2739,6 +2806,30 @@ void OBSBasic::MixerRenameSource()
 
 		obs_source_set_name(source, name.c_str());
 		break;
+	}
+}
+
+void OBSBasic::MixerSceneChanged(int index)
+{
+	OBSScene scene = GetCurrentScene();
+	OBSSource source = obs_scene_get_source(scene);
+	obs_source_release(source);
+	OBSData settings = obs_source_get_settings(source);
+	obs_data_release(settings);
+	const char *name = obs_source_get_name(source);
+	QString selectedName = ui->mixerSceneDropdown->itemText(index);
+
+	if (index == 0) {
+		obs_data_erase(settings, "mixerScene");
+		if (selectedName == QT_UTF8(name))
+			obs_data_erase(settings, "mixerSettings");
+	}
+	else {
+		obs_data_set_string(settings, "mixerScene",
+				QT_TO_UTF8(selectedName));
+		if (selectedName == QT_UTF8(name))
+			obs_data_set_obj(settings, "mixerSettings",
+				GenerateAudioSaveData());
 	}
 }
 

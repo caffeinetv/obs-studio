@@ -195,6 +195,8 @@ private:
 
 	ConfigFile    basicConfig;
 
+	OBSData       globalAudioSettings;
+
 	std::vector<SavedProjectorInfo*> savedProjectorsArray;
 	QPointer<QWidget> projectors[10];
 	QList<QPointer<QWidget>> windowProjectors;
@@ -501,6 +503,7 @@ private slots:
 	void ToggleHideMixer();
 
 	void MixerRenameSource();
+	void MixerSceneChanged(int index);
 
 	void on_vMixerScrollArea_customContextMenuRequested();
 	void on_hMixerScrollArea_customContextMenuRequested();
