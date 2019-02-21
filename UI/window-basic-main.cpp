@@ -657,8 +657,21 @@ static void LoadAudioDevice(const char *name, int channel, obs_data_t *parent)
 	obs_data_release(data);
 }
 
-static void ApplyAudioSaveData(OBSData container) {
-// TODO
+void OBSBasic::ApplyAudioSaveData(OBSData container) {
+	for (auto & vol : volumes) {
+		obs_source_t * source = vol->GetSource();
+		if (!source)
+			continue;
+		const char *name = obs_source_get_name(source);
+
+		OBSData settings = obs_data_get_obj(container, name);
+		if (!settings)
+			continue;
+
+		obs_data_set_default_double(settings, "volume", 1.0);
+		obs_source_set_volume(source,
+			obs_data_get_double(settings, "volume"));
+	}
 }
 
 static void CopyObj(OBSData dest, OBSData source, const char *name) {
@@ -2611,6 +2624,17 @@ void OBSBasic::AddSceneItem(OBSSceneItem item)
 
 void OBSBasic::UpdateSceneSelection(OBSSource source)
 {
+	OBSScene previousScene = GetCurrentScene();
+	OBSSource previousSource = obs_scene_get_source(previousScene);
+	if (previousSource) {
+		OBSData previousSettings = obs_source_get_settings(previousSource);
+		obs_data_release(previousSettings);
+		OBSData mixerSettings = obs_data_get_obj(previousSettings, "mixerSettings");
+		obs_data_release(mixerSettings);
+		if (mixerSettings)
+			obs_data_set_obj(previousSettings, "mixerSettings",
+					GenerateAudioSaveData());
+	}
 	if (source) {
 		obs_scene_t *scene = obs_scene_from_source(source);
 

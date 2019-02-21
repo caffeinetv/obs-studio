@@ -243,6 +243,7 @@ private:
 	void          UpdateVolumeControlsDecayRate();
 	void          UpdateVolumeControlsPeakMeterType();
 	void          ClearVolumeControls();
+	void          ApplyAudioSaveData(OBSData container);
 
 	void          UploadLog(const char *subdir, const char *file);
 
