@@ -2963,7 +2963,9 @@ void OBSBasic::CheckForUpdates(bool manualUpdate)
 {
 #ifdef UPDATE_SPARKLE
 	trigger_sparkle_update();
-#elif _WIN32
+// CAFFEINE TEMP DISABLE UPDATES
+#elif 0 && _WIN32
+// END CAFFEINE TEMP
 	ui->actionCheckForUpdates->setEnabled(false);
 
 	if (updateCheckThread && updateCheckThread->isRunning())
