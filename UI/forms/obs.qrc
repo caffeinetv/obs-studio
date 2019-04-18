@@ -16,6 +16,7 @@
     <file>images/visible.svg</file>
     <file>images/trash.svg</file>
     <file>images/revert.svg</file>
+    <file>images/CaffeineLogo.png</file>
   </qresource>
   <qresource prefix="/settings">
     <file>images/settings/output.svg</file>

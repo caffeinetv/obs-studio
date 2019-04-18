@@ -16,9 +16,11 @@
 
 using namespace json11;
 
+#ifdef BROWSER_AVAILABLE
 #include <browser-panel.hpp>
 extern QCef *cef;
 extern QCefCookieManager *panel_cookies;
+#endif
 
 /* ------------------------------------------------------------------------- */
 
@@ -26,9 +28,11 @@ OAuthLogin::OAuthLogin(QWidget *parent, const std::string &url, bool token)
 	: QDialog   (parent),
 	  get_token (token)
 {
+#ifdef BROWSER_AVAILABLE
 	if (!cef) {
 		return;
 	}
+#endif
 
 	setWindowTitle("Auth");
 	setMinimumSize(400, 400);
@@ -40,6 +44,7 @@ OAuthLogin::OAuthLogin(QWidget *parent, const std::string &url, bool token)
 
 	OBSBasic::InitBrowserPanelSafeBlock();
 
+#ifdef BROWSER_AVAILABLE
 	cefWidget = cef->create_widget(nullptr, url, panel_cookies);
 	if (!cefWidget) {
 		fail = true;
@@ -50,6 +55,7 @@ OAuthLogin::OAuthLogin(QWidget *parent, const std::string &url, bool token)
 			this, SLOT(setWindowTitle(const QString &)));
 	connect(cefWidget, SIGNAL(urlChanged(const QString &)),
 			this, SLOT(urlChanged(const QString &)));
+#endif
 
 	QPushButton *close = new QPushButton(QTStr("Cancel"));
 	connect(close, &QAbstractButton::clicked,
@@ -61,20 +67,26 @@ OAuthLogin::OAuthLogin(QWidget *parent, const std::string &url, bool token)
 	bottomLayout->addStretch();
 
 	QVBoxLayout *topLayout = new QVBoxLayout(this);
+#ifdef BROWSER_AVAILABLE
 	topLayout->addWidget(cefWidget);
+#endif
 	topLayout->addLayout(bottomLayout);
 }
 
 OAuthLogin::~OAuthLogin()
 {
+#ifdef BROWSER_AVAILABLE
 	delete cefWidget;
+#endif
 }
 
 int OAuthLogin::exec()
 {
+#ifdef BROWSER_AVAILABLE
 	if (cefWidget) {
 		return QDialog::exec();
 	}
+#endif
 
 	return QDialog::Rejected;
 }
