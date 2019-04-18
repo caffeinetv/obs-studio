@@ -14,6 +14,9 @@
 
 #ifdef BROWSER_AVAILABLE
 #include <browser-panel.hpp>
+#endif
+
+#ifdef AUTH_ENABLED
 #include "auth-oauth.hpp"
 #endif
 
@@ -390,7 +393,7 @@ void AutoConfigStreamPage::on_show_clicked()
 
 void AutoConfigStreamPage::OnOAuthStreamKeyConnected()
 {
-#ifdef BROWSER_AVAILABLE
+#ifdef AUTH_ENABLED
 	OAuthStreamKey *a = reinterpret_cast<OAuthStreamKey*>(auth.get());
 
 	if (a) {
@@ -422,7 +425,7 @@ void AutoConfigStreamPage::OnAuthConnected()
 
 void AutoConfigStreamPage::on_connectAccount_clicked()
 {
-#ifdef BROWSER_AVAILABLE
+#ifdef AUTH_ENABLED
 	std::string service = QT_TO_UTF8(ui->service->currentText());
 
 	auth = OAuthStreamKey::Login(this, service);
@@ -455,7 +458,7 @@ void AutoConfigStreamPage::on_disconnectAccount_clicked()
 
 	std::string service = QT_TO_UTF8(ui->service->currentText());
 
-#ifdef BROWSER_AVAILABLE
+#ifdef AUTH_ENABLED
 	OAuth::DeleteCookies(service);
 #endif
 
@@ -492,7 +495,7 @@ void AutoConfigStreamPage::ServiceChanged()
 
 	ui->disconnectAccount->setVisible(false);
 
-#ifdef BROWSER_AVAILABLE
+#ifdef AUTH_ENABLED
 	if (cef) {
 		if (lastService != service.c_str()) {
 			bool can_auth = is_auth_service(service);
@@ -547,7 +550,7 @@ void AutoConfigStreamPage::ServiceChanged()
 	ui->bitrateLabel->setHidden(testBandwidth);
 	ui->bitrate->setHidden(testBandwidth);
 
-#ifdef BROWSER_AVAILABLE
+#ifdef AUTH_ENABLED
 	OBSBasic *main = OBSBasic::Get();
 
 	if (!!main->auth &&
