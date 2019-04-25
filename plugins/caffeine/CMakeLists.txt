@@ -1,6 +1,6 @@
 project(caffeine)
 
-find_package(Libcaffeine REQUIRED)
+find_package(libcaffeine REQUIRED)
 find_package(Threads REQUIRED)
 
 if(MSVC)
@@ -8,9 +8,6 @@ if(MSVC)
 		shlwapi.lib
 		w32-pthreads)
 endif()
-
-include_directories(
-	${LIBCAFFEINE_INCLUDE_DIR})
 
 set(caffeine_HEADERS
 	caffeine-foreground-process.h
@@ -30,7 +27,8 @@ target_link_libraries(caffeine
 	${LIBCAFFEINE_LIBRARY}
 	${caffeine_PLATFORM_DEPS}
 	${THREADS_LIBRARIES}
-	libobs)
+	libobs
+	libcaffeine)
 
 install_obs_plugin_with_data(caffeine data)
 
