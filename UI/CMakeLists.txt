@@ -39,7 +39,7 @@ else()
 	set(MIXER_ENABLED TRUE)
 endif()
 
-find_package(Libcaffeine)
+find_package(libcaffeine)
 if(LIBCAFFEINE_FOUND)
 	set(CAFFEINE_ENABLED TRUE)
 else()
@@ -189,9 +189,6 @@ if(BROWSER_AVAILABLE_INTERNAL)
 				w32-pthreads)
 		endif()
 
-		include_directories(
-			${LIBCAFFEINE_INCLUDE_DIR}
-			)
 		set(caffeine_HEADERS
 			auth-caffeine.hpp
 			)
@@ -207,7 +204,7 @@ if(BROWSER_AVAILABLE_INTERNAL)
 		set(obs_PLATFORM_LIBRARIES
 			${obs_PLATFORM_LIBRARIES}
 			${caffeine_PLATFORM_DEPS}
-			${LIBCAFFEINE_LIBRARY}
+			libcaffeine
 			${THREADS_LIBRARIES})
 	endif()
 

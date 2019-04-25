@@ -1,92 +1,67 @@
-# Once done these will be defined:
+# find_package handler for libcaffeine
 #
-#  HAVE_LIBCAFFEINE
-#  LIBCAFFEINE_FOUND
-#  LIBCAFFEINE_INCLUDE_DIR
-#  LIBCAFFEINE_LIBRARY
-#  LIBCAFFEINE_SHARED
+# Parameters
+# - LIBCAFFEINE_DIR: Path to libcaffeine source or cpack package
+#
+# Variables:
+# - See libcaffeineConfig.cmake
+# 
+# Defined Targets:
+# - libcaffeine
+#
 
-find_package(PkgConfig QUIET)
-if (PKG_CONFIG_FOUND)
-	pkg_check_modules(_LIBCAFFEINE QUIET libcaffeine)
-endif()
+set(LIBCAFFEINE_DIR "" CACHE PATH "Path to libcaffeine")
+set(LIBCAFFEINE_FOUND FALSE)
 
-if(CMAKE_SIZEOF_VOID_P EQUAL 8)
-	set(_lib_suffix 64)
-else()
-	set(_lib_suffix 86)
-endif()
+function(find_libcaffeine_cpack search_dir)
+    if(NOT EXISTS "${search_dir}")
+        set(LIBCAFFEINE_FOUND FALSE)
+        return()
+    endif()
 
-if(WIN32)
-	set(_os win)
-elseif(APPLE)
-	set(_os mac)
-else()
-	message(STATUS "TODO: other os's.")
-	return()
-endif()
+    math(EXPR BITS "8*${CMAKE_SIZEOF_VOID_P}")
 
-# TODO: Find debug & release versions separately for different build configs
-find_path(LIBCAFFEINE_INCLUDE_DIR
-	NAMES caffeine.h
-	HINTS
-		ENV LibcaffeinePath{_lib_suffix}
-		ENV LibcaffeinePath
-		ENV DepsPath${_lib_suffix}
-		ENV DepsPath
-		${LibcaffeinePath${_lib_suffix}}
-		${LibcaffeinePath}
-		${DepsPath${_lib_suffix}}
-		${DepsPath}
-		${_LIBCAFFEINE_INCLUDE_DIRS}
-	PATHS
-		/usr/include /usr/local/include /opt/local/include /sw/include
-	PATH_SUFFIXES
-		libcaffeine/include
-		include)
+    find_file(LIBCAFFEINE_CMAKE_FILE
+        NAMES
+            libcaffeineConfig.cmake
+        HINTS
+            ${search_dir}
+        PATHS
+            /usr/include
+            /usr/local/include
+            /opt/local/include
+            /opt/local
+            /sw/include
+            ~/Library/Frameworks
+            /Library/Frameworks
+        PATH_SUFFIXES
+            lib${BITS}/cmake
+            lib/${BITS}/cmake
+            lib/cmake${BITS}
+            lib${BITS}
+            lib/${BITS}
+            cmake${BITS}
+            lib/cmake
+            lib
+            cmake
+    )
 
-set(_build_dir_base "${_os}_x${_lib_suffix}")
+    if(LIBCAFFEINE_CMAKE_FILE)
+        set(LIBCAFFEINE_FOUND TRUE)
+        return()
+    endif()
+endfunction()
 
-find_library(LIBCAFFEINE_LIBRARY
-	NAMES libcaffeine.lib libcaffeine.a
-	HINTS
-		${LIBCAFFEINE_INCLUDE_DIR}
-		ENV LibcaffeinePath{_lib_suffix}
-		ENV LibcaffeinePath
-		ENV DepsPath${_lib_suffix}
-		ENV DepsPath
-		${LibcaffeinePath${_lib_suffix}}
-		${LibcaffeinePath}
-		${DepsPath${_lib_suffix}}
-		${DepsPath}
-		${_LIBCAFFEINE_LIBRARY_DIRS}
-	PATHS
-		/usr/lib /usr/local/lib /opt/local/lib /sw/lib
-	PATH_SUFFIXES
-		../build/Debug
-		../build/RelWithDebInfo)
-
-if (LIBCAFFEINE_LIBRARY)
-	if(WIN32)
-		string(REGEX REPLACE ".lib$" ".dll" LIBCAFFEINE_SHARED ${LIBCAFFEINE_LIBRARY})
-	elseif(APPLE)
-		set(LIBCAFFEINE_SHARED ${LIBCAFFEINE_LIBRARY})
-	else()
-		string(REGEX REPLACE ".a$" ".so" LIBCAFFEINE_SHARED ${LIBCAFFEINE_LIBRARY})
-	endif()
-
-	set(LIBCAFFEINE_SHARED ${LIBCAFFEINE_SHARED} PARENT_SCOPE)
-
-	set (HAVE_LIBCAFFEINE "1")
-else()
-	set (HAVE_LIBCAFFEINE "0")
-endif()
+find_libcaffeine_cpack(${LIBCAFFEINE_DIR})
 
 include(FindPackageHandleStandardArgs)
+find_package_handle_standard_args(
+    LIBCAFFEINE
+    FOUND_VAR LIBCAFFEINE_FOUND
+    REQUIRED_VARS
+        LIBCAFFEINE_CMAKE_FILE
+)
 
-find_package_handle_standard_args(Libcaffeine
-	FOUND_VAR LIBCAFFEINE_FOUND
-	REQUIRED_VARS LIBCAFFEINE_INCLUDE_DIR LIBCAFFEINE_LIBRARY LIBCAFFEINE_SHARED)
-
-
-mark_as_advanced(LIBCAFFEINE_INCLUDE_DIR LIBCAFFEINE_LIBRARY LIBCAFFEINE_SHARED)
+if(LIBCAFFEINE_FOUND)
+    include("${LIBCAFFEINE_CMAKE_FILE}")
+endif()
