@@ -39,7 +39,7 @@ else()
 	set(MIXER_ENABLED TRUE)
 endif()
 
-find_package(Libcaffeine)
+find_package(libcaffeine)
 if(LIBCAFFEINE_FOUND)
 	set(CAFFEINE_ENABLED TRUE)
 else()
@@ -179,7 +179,7 @@ if(CAFFEINE_ENABLED)
 	set(obs_PLATFORM_LIBRARIES
 		${obs_PLATFORM_LIBRARIES}
 		${caffeine_PLATFORM_DEPS}
-		${LIBCAFFEINE_LIBRARY}
+		libcaffeine
 		${THREADS_LIBRARIES})
 endif()
 

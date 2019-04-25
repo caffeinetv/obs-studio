@@ -1,9 +1,10 @@
 Caffeine Plugin
 ===============
 
-To build OBS with caffeine support, before running cmake:
+Building
+--------
 
- - Download or build [libcaffeine](https://github.com/caffeinetv/libcaffeine)
- - Set LibcaffeinePath environment variable to point to the root of libcaffeine
-
-TODO: get libcaffeine included in OBS dependencies zip
+1. Download the libcaffeine CPack package or check out [libcaffeine](https://github.com/caffeinetv/libcaffeine) and build it.
+2. Set LIBCAFFEINE_DIR to either your built project directory or to where you extracted the libcaffeine CPack package.
+2. Configure
+3. Generate
