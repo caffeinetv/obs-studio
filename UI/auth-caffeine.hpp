@@ -2,6 +2,7 @@
 
 #include "auth-oauth.hpp"
 #include "caffeine.h"
+#include "window-dock.hpp"
 
 class CaffeineChat;
 class QLineEdit;
@@ -13,9 +14,10 @@ class CaffeineAuth : public OAuthStreamKey {
 	Q_OBJECT
 	caff_InstanceHandle instance;
 
+	bool uiLoaded = false;
+	QSharedPointer<OBSDock> panelDock;
 	QSharedPointer<CaffeineChat> chat;
 	QSharedPointer<QAction> chatMenu;
-	bool uiLoaded = false;
 
 	std::string username;
 
@@ -34,9 +36,13 @@ class CaffeineAuth : public OAuthStreamKey {
 
 	virtual void LoadUI() override;
 
+	virtual void OnStreamConfig() override;
+
 public:
 	CaffeineAuth(const Def &d);
 	virtual ~CaffeineAuth();
 
 	static std::shared_ptr<Auth> Login(QWidget *parent);
+
+	std::string GetUsername();
 };

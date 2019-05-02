@@ -13,6 +13,7 @@
 #include "window-basic-main.hpp"
 #include "remote-text.hpp"
 #include "window-dock.hpp"
+#include "window-caffeine.hpp"
 
 #include <util/threading.h>
 #include <util/platform.h>
@@ -126,8 +127,24 @@ void CaffeineAuth::LoadUI()
 	if (!GetChannelInfo())
 		return;
 	/* TODO: Chat */
+
+	// Panel
+	panelDock = QSharedPointer<CaffeineInfoPanel>(new CaffeineInfoPanel(this, instance)).dynamicCast<OBSDock>();
+
 	uiLoaded = true;
 	return;
+}
+
+void CaffeineAuth::OnStreamConfig()
+{
+	OBSBasic *main = OBSBasic::Get();
+	obs_service_t *service = main->GetService();
+	obs_data_t *data = obs_service_get_settings(service);
+	QSharedPointer<CaffeineInfoPanel> panel2 = panelDock.dynamicCast<CaffeineInfoPanel>();
+	obs_data_set_string(data, "broadcast_title", panel2->getTitle().c_str());
+	obs_data_set_int(data, "rating", static_cast<int64_t>(panel2->getRating()));
+	obs_service_update(service, data);
+	obs_data_release(data);
 }
 
 bool CaffeineAuth::RetryLogin()
@@ -328,6 +345,11 @@ std::shared_ptr<Auth> CaffeineAuth::Login(QWidget *parent)
 			return auth;
 	}
 	return nullptr;
+}
+
+std::string CaffeineAuth::GetUsername()
+{
+	return this->username;
 }
 
 static std::shared_ptr<Auth> CreateCaffeineAuth()

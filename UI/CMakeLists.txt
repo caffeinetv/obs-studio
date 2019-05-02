@@ -295,7 +295,8 @@ set(obs_SOURCES
 	source-label.cpp
 	remote-text.cpp
 	audio-encoders.cpp
-	qt-wrappers.cpp)
+	qt-wrappers.cpp
+	window-caffeine.cpp)
 
 set(obs_HEADERS
 	${obs_PLATFORM_HEADERS}
@@ -354,7 +355,8 @@ set(obs_HEADERS
 	remote-text.hpp
 	audio-encoders.hpp
 	qt-wrappers.hpp
-	clickable-label.hpp)
+	clickable-label.hpp
+	window-caffeine.hpp)
 
 set(obs_UI
 	forms/NameDialog.ui
@@ -372,10 +374,12 @@ set(obs_UI
 	forms/OBSBasicInteraction.ui
 	forms/OBSUpdate.ui
 	forms/OBSRemux.ui
-	forms/OBSAbout.ui)
+	forms/OBSAbout.ui
+	forms/CaffeinePanel.ui)
 
 set(obs_QRC
-	forms/obs.qrc)
+	forms/obs.qrc
+	forms/caffeine.qrc)
 
 qt5_wrap_ui(obs_UI_HEADERS ${obs_UI})
 qt5_add_resources(obs_QRC_SOURCES ${obs_QRC})
