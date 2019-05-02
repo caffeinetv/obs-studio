@@ -377,6 +377,18 @@ set(obs_UI
 set(obs_QRC
 	forms/obs.qrc)
 
+if(CAFFEINE_ENABLED)
+	list(APPEND obs_UI
+		forms/CaffeinePanel.ui
+	)
+	list(APPEND obs_HEADERS
+		window-caffeine.hpp
+	)
+	list(APPEND obs_SOURCES
+		window-caffeine.cpp
+	)
+endif()
+
 qt5_wrap_ui(obs_UI_HEADERS ${obs_UI})
 qt5_add_resources(obs_QRC_SOURCES ${obs_QRC})
 

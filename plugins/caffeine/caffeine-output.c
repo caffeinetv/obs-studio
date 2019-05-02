@@ -241,26 +241,48 @@ static void * game_detection_thread(void *data)
 	struct caffeine_output *context = data;
 	uint32_t const stop_interval = 100/*ms*/;
 	uint32_t const check_interval = 5000/*ms*/;
+	uint32_t const service_interval = 1000/*ms*/;
 
-	uint32_t cur_interval = 0;
+	uint64_t last_ts = os_gettime_ns();
+	uint64_t cur_interval_game = 0;
+	uint64_t cur_interval_service = 0;
 	while (context->is_online) {
 		os_sleep_ms(stop_interval);
-		cur_interval += stop_interval;
 
-		if (cur_interval < check_interval)
-			continue;
+		// Update Timers
+		uint64_t now_ts = os_gettime_ns();
+		int64_t delta_ts = now_ts - last_ts;
+		last_ts = now_ts;
+		cur_interval_game += delta_ts;
+		cur_interval_service += delta_ts;
 
-		cur_interval = 0;
-		context->foreground_process = get_foreground_process_name();
-		if (context->foreground_process) {
-			caff_enumerateGames(context->instance, context,
-						enumerate_games);
-			bfree(context->foreground_process);
-			context->foreground_process = NULL;
+		// Game Update
+		if (cur_interval_game > check_interval) {
+			cur_interval_game = 0;
+			context->foreground_process = get_foreground_process_name();
+			if (context->foreground_process) {
+				caff_enumerateGames(context->instance, context,
+					enumerate_games);
+				bfree(context->foreground_process);
+				context->foreground_process = NULL;
+			}
+			caff_setGameId(context->instance, context->game_id);
+			bfree(context->game_id);
+			context->game_id = NULL;
 		}
-		caff_setGameId(context->instance, context->game_id);
-		bfree(context->game_id);
-		context->game_id = NULL;
+
+		// Service Update
+		if (cur_interval_service > service_interval) {
+			cur_interval_service = 0;
+			obs_service_t* service = obs_output_get_service(context->output);
+			if (service) {
+				obs_data_t* data = obs_service_get_settings(service);
+				caff_setTitle(context->instance, obs_data_get_string(data, BROADCAST_TITLE_KEY));
+				caff_setRating(context->instance, obs_data_get_int(data, BROADCAST_RATING_KEY));
+				obs_data_release(data);
+				obs_service_release(service);
+			}
+		}
 	}
 	return NULL;
 }
