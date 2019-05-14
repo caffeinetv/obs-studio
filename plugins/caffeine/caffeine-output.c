@@ -303,14 +303,15 @@ static void caffeine_raw_video(void *data, struct video_data *frame)
 	uint32_t width = context->video_info.output_width;
 	uint32_t height = context->video_info.output_height;
 	size_t total_bytes = frame->linesize[0] * height;
-	caff_VideoFormat caff_VideoFormat =
+	caff_VideoFormat format =
 		obs_to_caffeine_format(context->video_info.output_format);
+	int32_t timestampMicros = frame->timestamp / 1000;
 
 	if (!context->start_timestamp)
 		context->start_timestamp = frame->timestamp;
 
-	caff_sendVideo(context->instance, frame->data[0], total_bytes,
-		width, height, caff_VideoFormat);
+	caff_sendVideo(context->instance, format, frame->data[0], total_bytes,
+		width, height, timestampMicros);
 }
 
 /* This fixes an issue where unencoded outputs have video & audio out of sync
