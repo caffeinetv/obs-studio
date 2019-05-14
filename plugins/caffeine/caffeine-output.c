@@ -887,7 +887,7 @@ static void caffeine_raw_video(void *data, struct video_data *frame)
 	pthread_mutex_lock(&context->stream_mutex);
 	if (context->stream)
 		caff_send_video(context->stream, frame->data[0], total_bytes,
-			width, height, caff_format);
+			width, height, frame->timestamp, caff_format);
 	pthread_mutex_unlock(&context->stream_mutex);
 }
 
