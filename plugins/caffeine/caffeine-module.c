@@ -42,9 +42,9 @@ bool obs_module_load(void)
 {
 	obs_register_output(&caffeine_output_info);
 #ifdef NDEBUG
-	caff_initialize(caff_SeverityWarning, caffeine_log);
+	caff_initialize("obs", OBS_VERSION, caff_SeverityWarning, caffeine_log);
 #else
-	caff_initialize(caff_SeverityDebug, caffeine_log);
+	caff_initialize("obs", OBS_VERSION, caff_SeverityDebug, caffeine_log);
 #endif
 	return true;
 }
