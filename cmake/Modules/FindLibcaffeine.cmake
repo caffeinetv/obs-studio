@@ -285,7 +285,6 @@ function(find_libcaffeine_project)
         add_library(libcaffeine SHARED IMPORTED)
         set_target_properties(libcaffeine PROPERTIES
             INTERFACE_INCLUDE_DIRECTORIES "${LIBCAFFEINE_INCLUDE_DIR}"
-            INTERFACE_SOURCES "${LIBCAFFEINE_INCLUDE_DIR}/caffeine.h"
         )
         set_property(TARGET libcaffeine APPEND PROPERTY IMPORTED_CONFIGURATIONS RELWITHDEBINFO)
         set_target_properties(libcaffeine PROPERTIES
