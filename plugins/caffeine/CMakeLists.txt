@@ -11,7 +11,6 @@ endif()
 
 set(caffeine_HEADERS
 	caffeine-foreground-process.h
-	caffeine-log.h
 	caffeine-settings.h)
 
 set(caffeine_SOURCES

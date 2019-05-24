@@ -11,12 +11,29 @@
 #include "caffeine-foreground-process.h"
 #include "caffeine-settings.h"
 
-#define CAFFEINE_LOG_TITLE "caffeine output"
-#include "caffeine-log.h"
-
 /* Uncomment this to log each call to raw_audio/video
 #define TRACE_FRAMES
 /**/
+
+#define do_log(level, format, ...) \
+	blog(level, "[caffeine output] " format, ##__VA_ARGS__)
+
+#define log_error(format, ...)  do_log(LOG_ERROR, format, ##__VA_ARGS__)
+#define log_warn(format, ...)  do_log(LOG_WARNING, format, ##__VA_ARGS__)
+#define log_info(format, ...)  do_log(LOG_INFO, format, ##__VA_ARGS__)
+#define log_debug(format, ...)  do_log(LOG_DEBUG, format, ##__VA_ARGS__)
+
+#define trace() log_debug("%s", __func__)
+
+#define set_error(output, fmt, ...) \
+	do { \
+		struct dstr message; \
+		dstr_init(&message); \
+		dstr_printf(&message, (fmt), ##__VA_ARGS__); \
+		log_error("%s", message.array); \
+		obs_output_set_last_error((output), message.array); \
+		dstr_free(&message); \
+	} while(false)
 
 struct caffeine_output
 {
@@ -112,37 +129,16 @@ static bool caffeine_authenticate(struct caffeine_output *context)
 	obs_service_t *service    = obs_output_get_service(output);
 	char const *refresh_token = obs_service_get_key(service);
 
-	if (strcmp(refresh_token, "") == 0) {
-		set_error(output, "%s", obs_module_text("ErrorMustSignIn"));
-		return false;
-	}
-
 	switch (caff_refreshAuth(context->instance, refresh_token)) {
 	case caff_ResultSuccess:
 		return true;
-	case caff_ResultOldVersion:
-		set_error(output, "%s", obs_module_text("ErrorOldVersion"));
-		return false;
 	case caff_ResultInfoIncorrect:
 		set_error(output, "%s", obs_module_text("SigninFailed"));
 		return false;
-	case caff_ResultLegalAcceptanceRequired:
-		set_error(output, "%s",
-			obs_module_text("TosAcceptanceRequired"));
-		return false;
-	case caff_ResultEmailVerificationRequired:
-		set_error(output, "%s",
-			obs_module_text("EmailVerificationRequired"));
-		return false;
-	case caff_ResultMfaOtpRequired:
-		set_error(output, "%s", obs_module_text("OtpRequired"));
-		return false;
-	case caff_ResultMfaOtpIncorrect:
-		set_error(output, "%s", obs_module_text("OtpIncorrect"));
+	case caff_ResultRefreshTokenRequired:
+		set_error(output, "%s", obs_module_text("ErrorMustSignIn"));
 		return false;
 	case caff_ResultFailure:
-		set_error(output, "%s", obs_module_text("NoAuthResponse"));
-		return false;
 	default:
 		set_error(output, "%s", obs_module_text("SigninFailed"));
 		return false;
@@ -153,11 +149,23 @@ static bool caffeine_start(void *data)
 {
 	trace();
 	struct caffeine_output *context = data;
+	obs_output_t * output = context->output;
+
+	switch (caff_checkVersion()) {
+	case caff_ResultSuccess:
+		break;
+	case caff_ResultOldVersion:
+		set_error(output, "%s", obs_module_text("ErrorOldVersion"));
+		return false;
+	default:
+		log_warn("Failed to complete Caffeine version check");
+	}
+
 	if (!caffeine_authenticate(context))
 		return false;
 
 	if (!obs_get_video_info(&context->video_info)) {
-		set_error(context->output, "Failed to get video info");
+		set_error(output, "Failed to get video info");
 		return false;
 	}
 
@@ -168,8 +176,7 @@ static bool caffeine_start(void *data)
 	double ratio = (double)context->video_info.output_width /
 		context->video_info.output_height;
 	if (ratio < min_ratio || ratio > max_ratio) {
-		set_error(context->output, "%s",
-			obs_module_text("ErrorAspectRatio"));
+		set_error(output, "%s", obs_module_text("ErrorAspectRatio"));
 		return false;
 	}
 
@@ -177,8 +184,7 @@ static bool caffeine_start(void *data)
 		obs_to_caffeine_format(context->video_info.output_format);
 
 	if (format == caff_VideoFormatUnknown) {
-		set_error(context->output, "%s %s",
-			obs_module_text("ErrorVideoFormat"),
+		set_error(output, "%s %s", obs_module_text("ErrorVideoFormat"),
 			get_video_format_name(
 				context->video_info.output_format));
 		return false;
@@ -189,34 +195,32 @@ static bool caffeine_start(void *data)
 		.speakers = SPEAKERS_STEREO,
 		.samples_per_sec = 48000
 	};
-	obs_output_set_audio_conversion(context->output, &conversion);
+	obs_output_set_audio_conversion(output, &conversion);
 
 	context->audio_planes =
 		get_audio_planes(conversion.format, conversion.speakers);
 	context->audio_size =
 		get_audio_size(conversion.format, conversion.speakers, 1);
 
-	if (!obs_output_can_begin_data_capture(context->output, 0))
+	if (!obs_output_can_begin_data_capture(output, 0))
 		return false;
 
-	obs_service_t *service = obs_output_get_service(context->output);
+	obs_service_t *service = obs_output_get_service(output);
 	obs_data_t *settings   = obs_service_get_settings(service);
 	char const *title  =
 		obs_data_get_string(settings, BROADCAST_TITLE_KEY);
 
-	if (strcmp(title, "") == 0)
-		title = obs_module_text("DefaultBroadcastTitle");
-
 	caff_Rating rating = (caff_Rating)
 		obs_data_get_int(settings, BROADCAST_RATING_KEY);
+	obs_data_release(settings);
 
 	caff_Result error =
 		caff_startBroadcast(context->instance, context,
 			title, rating, NULL,
 			caffeine_stream_started, caffeine_stream_failed);
+
 	if (error) {
-		set_error(context->output, "%s",
-			obs_module_text("ErrorStartStream"));
+		set_error(output, "%s", obs_module_text("ErrorStartStream"));
 		return false;
 	}
 
