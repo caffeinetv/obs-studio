@@ -57,21 +57,25 @@ CaffeineAuth::~CaffeineAuth()
 
 bool CaffeineAuth::GetChannelInfo()
 try {
-	if (refresh_token.empty()) {
-		throw ErrorInfo("Auth Failure", "Could not get refresh token");
-	}
 	key_ = refresh_token;
 
-	if (!caff_isSignedIn(instance)) {
-		auto result = caff_refreshAuth(instance, refresh_token.c_str());
-		if (result != caff_ResultSuccess) {
-			throw ErrorInfo("Auth Failure", "Signin failed");
+	if (caff_isSignedIn(instance)) {
+		username = caff_getUsername(instance);
+		return true;
+	} else {
+		switch (caff_refreshAuth(instance, refresh_token.c_str())) {
+		case caff_ResultSuccess:
+			username = caff_getUsername(instance);
+			return true;
+		case caff_ResultRefreshTokenRequired:
+		case caff_ResultInfoIncorrect:
+			throw ErrorInfo(Str("CaffeineAuth.Unauthorized"),
+				Str("CaffeineAuth.IncorrectRefresh"));
+		default:
+			throw ErrorInfo(Str("CaffeineAuth.Failed"),
+				Str("CaffeineAuth.SigninFailed"));
 		}
 	}
-	
-	username = caff_getUsername(instance);
-	
-	return true;
 } catch (ErrorInfo info) {
 	QString title = QTStr("Auth.ChannelFailure.Title");
 	QString text = QTStr("Auth.ChannelFailure.Text")
@@ -176,30 +180,23 @@ void CaffeineAuth::TryAuth(
 	std::string message = "";
 	std::string error = "";
 
-	if (username.empty() || password.empty()) {
-		message = "Missing Password or Username";
-		error = "A username and password are required!";
-		QString title = QTStr("Auth.ChannelFailure.Title");
-		QString text = QTStr("Auth.ChannelFailure.Text")
-			.arg("Caffeine", message.c_str(), error.c_str());
-
-		QMessageBox::warning(OBSBasic::Get(), title, text);
-		return;
-	}
-
 	auto response = caff_signIn(instance, username.c_str(), password.c_str(), otp.c_str());
 	switch (response) {
 	case caff_ResultSuccess:
 		refresh_token = caff_getRefreshToken(instance);
 		prompt->accept();
 		return;
-	case caff_ResultInfoIncorrect:
-		message = "Unauthorized";
-		error = "Incorrect login info";
+	case caff_ResultUsernameRequired:
+		message = Str("CaffeineAuth.Failed");
+		error = Str("CaffeineAuth.UsernameRequired");
 		break;
-	case caff_ResultOldVersion:
-		message = "Unauthorized";
-		error = "Out-of-date version of libcaffeine";
+	case caff_ResultPasswordRequired:
+		message = Str("CaffeineAuth.Failed");
+		error = Str("CaffeineAuth.PasswordRequired");
+		break;
+	case caff_ResultInfoIncorrect:
+		message = Str("CaffeineAuth.Unauthorized");
+		error = Str("CaffeineAuth.IncorrectInfo");
 		break;
 	case caff_ResultMfaOtpRequired:
 	case caff_ResultMfaOtpIncorrect: /* TODO make this different */
@@ -208,17 +205,17 @@ void CaffeineAuth::TryAuth(
 		otp = onetimepassword->text().toStdString();
 		return;
 	case caff_ResultLegalAcceptanceRequired:
-		message = "Unauthorized";
-		error = "Legal acceptance required\n";
+		message = Str("CaffeineAuth.Unauthorized");
+		error = Str("CaffeineAuth.TosAcceptanceRequired");
 		break;
 	case caff_ResultEmailVerificationRequired:
-		message = "Unauthorized";
-		error = "Email needs verification\n";
+		message = Str("CaffeineAuth.Unauthorized");
+		error = Str("CaffeineAuth.EmailVerificationRequired");
 		break;
 	case caff_ResultFailure:
 	default:
-		message = "Failed";
-		error = "Sign-in request failed";
+		message = Str("CaffeineAuth.Failed");
+		error = Str("CaffeineAuth.SigninFailed");
 		break;
 	}
 
