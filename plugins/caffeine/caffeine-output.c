@@ -331,7 +331,7 @@ static void caffeine_raw_video(void *data, struct video_data *frame)
 	size_t total_bytes = frame->linesize[0] * height;
 	caff_VideoFormat format =
 		obs_to_caffeine_format(context->video_info.output_format);
-	int32_t timestampMicros = frame->timestamp / 1000;
+	int64_t timestampMicros = frame->timestamp / 1000;
 
 	if (!context->start_timestamp)
 		context->start_timestamp = frame->timestamp;
