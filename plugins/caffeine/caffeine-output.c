@@ -264,7 +264,8 @@ static void * monitor_thread(void *data)
 		// Game Update
 		if (cur_game_interval > game_interval) {
 			cur_game_interval = 0;
-			context->foreground_process = get_foreground_process_name();
+			context->foreground_process =
+				get_foreground_process_name();
 			if (context->foreground_process) {
 				caff_enumerateGames(context->instance, context,
 					enumerate_games);
@@ -279,15 +280,22 @@ static void * monitor_thread(void *data)
 		// Service Update
 		if (cur_service_interval > service_interval) {
 			cur_service_interval = 0;
-			obs_service_t* service = obs_output_get_service(context->output);
+			obs_service_t* service =
+				obs_output_get_service(context->output);
 			if (service) {
-				obs_data_t* data = obs_service_get_settings(service);
-				caff_setTitle(context->instance, obs_data_get_string(data, BROADCAST_TITLE_KEY));
-				caff_setRating(context->instance, obs_data_get_int(data, BROADCAST_RATING_KEY));
+				obs_data_t* data =
+					obs_service_get_settings(service);
+				caff_setTitle(context->instance,
+					obs_data_get_string(data,
+						BROADCAST_TITLE_KEY));
+				caff_setRating(context->instance,
+					obs_data_get_int(data,
+						BROADCAST_RATING_KEY));
 				obs_data_release(data);
 			}
 		}
 	}
+
 	return NULL;
 }
 
@@ -353,7 +361,8 @@ static bool prepare_audio(struct caffeine_output *context,
 	const uint64_t SAMPLES = 48000;
 
 	if (frame->timestamp < context->start_timestamp) {
-		uint64_t duration = (uint64_t)frame->frames * NANOSECONDS / SAMPLES;
+		uint64_t duration =
+			(uint64_t)frame->frames * NANOSECONDS / SAMPLES;
 		uint64_t end_ts = (frame->timestamp + duration);
 		uint64_t cutoff;
 
@@ -366,7 +375,8 @@ static bool prepare_audio(struct caffeine_output *context,
 		cutoff = cutoff * SAMPLES / NANOSECONDS;
 
 		for (size_t i = 0; i < context->audio_planes; i++)
-			output->data[i] += context->audio_size * (uint32_t)cutoff;
+			output->data[i] +=
+				context->audio_size * (uint32_t)cutoff;
 		output->frames -= (uint32_t)cutoff;
 	}
 
@@ -421,7 +431,8 @@ static float caffeine_get_congestion(void * data)
 {
 	struct caffeine_output * context = data;
 
-	caff_ConnectionQuality quality = caff_getConnectionQuality(context->instance);
+	caff_ConnectionQuality quality =
+		caff_getConnectionQuality(context->instance);
 
 	switch (quality) {
 	case caff_ConnectionQualityGood:

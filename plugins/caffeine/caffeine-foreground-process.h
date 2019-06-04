@@ -1,3 +1,3 @@
 #pragma once
 
-char * get_foreground_process_name();
+char *get_foreground_process_name();
