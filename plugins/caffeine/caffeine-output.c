@@ -117,8 +117,6 @@ static void caffeine_stream_started(void *data);
 static void caffeine_stream_failed(void *data, caff_Result error);
 
 static int const enforced_height = 720;
-static double const max_ratio = 3.0;
-static double const min_ratio = 1.0/3.0;
 
 static bool caffeine_authenticate(struct caffeine_output *context)
 {
@@ -169,16 +167,9 @@ static bool caffeine_start(void *data)
 		return false;
 	}
 
-	if (context->video_info.output_height != enforced_height)
+	if (context->video_info.output_height > enforced_height)
 		log_warn("For best video quality and reduced CPU usage,"
-			" set output resolution to 720p");
-
-	double ratio = (double)context->video_info.output_width /
-		context->video_info.output_height;
-	if (ratio < min_ratio || ratio > max_ratio) {
-		set_error(output, "%s", obs_module_text("ErrorAspectRatio"));
-		return false;
-	}
+			" set output resolution to 720p or below");
 
 	caff_VideoFormat format =
 		obs_to_caffeine_format(context->video_info.output_format);
