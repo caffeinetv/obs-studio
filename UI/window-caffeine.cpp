@@ -35,7 +35,7 @@ void CaffeineInfoPanel::viewOnWebClicked(bool)
 {
 	QUrl url;
 	url.setHost("caffeine.tv");
-	url.setPath(QString::fromStdString(owner->GetUsername()));
+	url.setPath(QString::fromStdString("/" + owner->GetUsername()));
 	url.setScheme("https");
 	QDesktopServices::openUrl(url);
 }
