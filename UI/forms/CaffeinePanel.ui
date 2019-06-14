@@ -12,8 +12,8 @@
   </property>
   <property name="minimumSize">
    <size>
-    <width>230</width>
-    <height>236</height>
+    <width>254</width>
+    <height>242</height>
    </size>
   </property>
   <property name="floating">
@@ -288,7 +288,17 @@ color: rgb(255, 255, 255);</string>
              </font>
             </property>
             <property name="styleSheet">
-             <string notr="true">color: rgb(0, 159, 224);</string>
+             <string notr="true">QPushButton {
+	color: rgb(0, 159, 224);
+}
+
+QPushButton:hover {
+	color: #92DFFF;
+}
+
+QPushButton:pressed {
+	color: #0079AA;
+}</string>
             </property>
             <property name="text">
              <string comment="Caffeine.Dock.UpdateRatingAndTitle">Update rating and title</string>
@@ -627,7 +637,6 @@ and chat with your audience.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
    </layout>
   </widget>
  </widget>
- <resources>
- </resources>
+ <resources/>
  <connections/>
 </ui>
