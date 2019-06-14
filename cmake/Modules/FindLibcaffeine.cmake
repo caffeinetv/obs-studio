@@ -109,6 +109,10 @@ function(find_libcaffeine_project)
             ${LIBCAFFEINE_DIR}
             ENV LIBCAFFEINE_DIR${BITS}
             ENV LIBCAFFEINE_DIR
+            ${DepsPath${BITS}}
+            ${DepsPath}
+            ENV DepsPath${BITS}
+            ENV DepsPath
         PATHS
             /usr/include
             /usr/local/include
@@ -118,6 +122,7 @@ function(find_libcaffeine_project)
             ~/Library/Frameworks
             /Library/Frameworks
         PATH_SUFFIXES
+            win${bits}/include
             include
             inc
     )
@@ -136,6 +141,10 @@ function(find_libcaffeine_project)
             ${LIBCAFFEINE_DIR}
             ENV LIBCAFFEINE_DIR${BITS}
             ENV LIBCAFFEINE_DIR
+            ${DepsPath${BITS}}
+            ${DepsPath}
+            ENV DepsPath${BITS}
+            ENV DepsPath
         PATHS
             /usr/include
             /usr/local/include
@@ -145,6 +154,8 @@ function(find_libcaffeine_project)
             ~/Library/Frameworks
             /Library/Frameworks
         PATH_SUFFIXES
+            win${BITS}/bin
+            bin
             build/${BITS}/RelWithDebInfo
             build${BITS}/RelWithDebInfo
             build/RelWithDebInfo
@@ -171,6 +182,10 @@ function(find_libcaffeine_project)
             ${LIBCAFFEINE_DIR}
             ENV LIBCAFFEINE_DIR${BITS}
             ENV LIBCAFFEINE_DIR
+            ${DepsPath${BITS}}
+            ${DepsPath}
+            ENV DepsPath${BITS}
+            ENV DepsPath
         PATHS
             /usr/include
             /usr/local/include
@@ -180,6 +195,8 @@ function(find_libcaffeine_project)
             ~/Library/Frameworks
             /Library/Frameworks
         PATH_SUFFIXES
+            win${BITS}/bin
+            bin
             build/${BITS}/Debug
             build${BITS}/Debug
             build/Debug
