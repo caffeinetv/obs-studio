@@ -30,6 +30,12 @@ target_link_libraries(caffeine
 
 install_obs_plugin_with_data(caffeine data)
 
-# TODO: figure out how to get libcaffeine copied to the right place on Mac & Linux
-# TODO: this sort of works on mac, but CI script fails. It doesn't do the right thing on linux
-#install_obs_bin(caffeine "" ${CAFFEINE_SHARED})
+# TODO: There may be a better way to do this, but generator expression didn't
+# work with the install_obs_bin helper
+if(CMAKE_BUILD_TYPE STREQUAL "Debug")
+    set(copy_bin ${LIBCAFFEINE_BINARY_DEBUG})
+else()
+    set(copy_bin ${LIBCAFFEINE_BINARY_RELWITHDEBINFO})
+endif()
+
+install_obs_bin(caffeine "" ${copy_bin})
