@@ -25,7 +25,8 @@ protected:
 public:
 	enum class Type {
 		None,
-		OAuth_StreamKey
+		OAuth_StreamKey,
+		Custom
 	};
 
 	struct Def {
@@ -48,7 +49,7 @@ public:
 
 	static std::shared_ptr<Auth> Create(const std::string &service);
 	static Type AuthType(const std::string &service);
-	static bool HiddenAuth(const std::string &service);
+	static bool KeyHidden(const std::string &service);
 	static void Load();
 	static void Save();
 

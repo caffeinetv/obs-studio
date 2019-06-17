@@ -38,7 +38,7 @@ using namespace json11;
 
 static Auth::Def caffeineDef = {
 	"Caffeine",
-	Auth::Type::OAuth_StreamKey,
+	Auth::Type::Custom,
 	true
 };
 

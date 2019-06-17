@@ -61,6 +61,8 @@ static int caffeine_to_obs_error(caff_Result error)
 {
 	switch (error)
 	{
+	case caff_ResultSuccess:
+		return OBS_OUTPUT_SUCCESS;
 	case caff_ResultOutOfCapacity:
 	case caff_ResultFailure:
 	case caff_ResultBroadcastFailed:
@@ -137,6 +139,9 @@ static bool caffeine_authenticate(struct caffeine_output *context)
 		set_error(output, "%s", obs_module_text("ErrorMustSignIn"));
 		return false;
 	case caff_ResultFailure:
+	case caff_ResultAlreadyBroadcasting:
+		log_warn("%s", obs_module_text("WarningAlreadyStreaming"));
+		return false;
 	default:
 		set_error(output, "%s", obs_module_text("SigninFailed"));
 		return false;
@@ -437,7 +442,9 @@ static float caffeine_get_congestion(void * data)
 
 struct obs_output_info caffeine_output_info = {
 	.id             = "caffeine_output",
-	.flags          = OBS_OUTPUT_AV | OBS_OUTPUT_SERVICE,
+	.flags          = OBS_OUTPUT_AV | OBS_OUTPUT_SERVICE |
+		OBS_OUTPUT_BANDWIDTH_TEST_DISABLED |
+		OBS_OUTPUT_HARDWARE_ENCODING_DISABLED,
 	.get_name       = caffeine_get_name,
 	.create         = caffeine_create,
 	.start          = caffeine_start,
