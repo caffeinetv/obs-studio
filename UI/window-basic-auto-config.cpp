@@ -20,12 +20,6 @@
 #include "auth-oauth.hpp"
 #endif
 
-struct QCef;
-struct QCefCookieManager;
-
-extern QCef              *cef;
-extern QCefCookieManager *panel_cookies;
-
 #define wiz reinterpret_cast<AutoConfig*>(wizard())
 
 /* ------------------------------------------------------------------------- */
@@ -479,25 +473,6 @@ void AutoConfigStreamPage::on_useStreamKey_clicked()
 	UpdateCompleted();
 }
 
-static inline bool can_auth_service(const std::string &service)
-{
-	Auth::Type auth_type = Auth::AuthType(service);
-	switch (auth_type) {
-	case Auth::Type::Custom:
-		return true;
-	case Auth::Type::OAuth_StreamKey:
-		return !!cef;
-	case Auth::Type::None:
-	default:
-		return false;
-	}
-}
-
-static inline bool should_hide_streamkey(const std::string &service)
-{
-	return Auth::KeyHidden(service);
-}
-
 void AutoConfigStreamPage::ServiceChanged()
 {
 	bool showMore =
@@ -514,8 +489,8 @@ void AutoConfigStreamPage::ServiceChanged()
 	ui->disconnectAccount->setVisible(false);
 
 #ifdef AUTH_ENABLED
-	bool can_auth = can_auth_service(service);
-	bool hidden_auth = should_hide_streamkey(service);
+	bool can_auth = Auth::CanAuthService(service);
+	bool hidden_auth = Auth::IsKeyHidden(service);
 	QString connectString =
 		QTStr("Basic.AutoConfig.StreamPage.ConnectAccount").arg(
 			hidden_auth ? QTStr("Required") : QTStr("Optional"));

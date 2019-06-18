@@ -14,12 +14,6 @@
 #include "auth-oauth.hpp"
 #endif
 
-struct QCef;
-struct QCefCookieManager;
-
-extern QCef              *cef;
-extern QCefCookieManager *panel_cookies;
-
 enum class ListOpt : int {
 	ShowAll = 1,
 	Custom,
@@ -252,25 +246,6 @@ void OBSBasicSettings::LoadServices(bool showAll)
 	ui->service->blockSignals(false);
 }
 
-static inline bool can_auth_service(const std::string &service)
-{
-	Auth::Type auth_type = Auth::AuthType(service);
-	switch (auth_type) {
-	case Auth::Type::Custom:
-		return true;
-	case Auth::Type::OAuth_StreamKey:
-		return !!cef;
-	case Auth::Type::None:
-	default:
-		return false;
-	}
-}
-
-static inline bool should_hide_streamkey(const std::string &service)
-{
-	return Auth::KeyHidden(service);
-}
-
 void OBSBasicSettings::on_service_currentIndexChanged(int)
 {
 	bool showMore =
@@ -295,35 +270,28 @@ void OBSBasicSettings::on_service_currentIndexChanged(int)
 #endif
 
 #ifdef AUTH_ENABLED
-	bool can_auth = can_auth_service(service);
-	bool hidden_auth = should_hide_streamkey(service);
+	bool can_auth = Auth::CanAuthService(service);
+	bool hidden_key = Auth::IsKeyHidden(service);
 	QString connectString =
 		QTStr("Basic.AutoConfig.StreamPage.ConnectAccount").arg(
-			hidden_auth ? QTStr("Required") : QTStr("Optional"));
+			hidden_key ? QTStr("Required") : QTStr("Optional"));
 	ui->connectAccount->setText(connectString);
 	ui->connectAccount2->setText(connectString);
 
 	if (lastService != service.c_str()) {
 		QString key = ui->key->text();
-		bool can_auth = can_auth_service(service);
-		bool hide_streamkey = should_hide_streamkey(service);
 		bool authenticated = !key.isEmpty();
 		int page = can_auth && (!loading || key.isEmpty())
 			? (int)Section::Connect
 			: (int)Section::StreamKey;
-		if (hide_streamkey)
+		if (hidden_key)
 			page = (int)Section::StreamKey;
-		ui->useStreamKey->setVisible(!hide_streamkey);
+		ui->useStreamKey->setVisible(!hidden_key);
 		ui->streamStackWidget->setCurrentIndex(page);
-		ui->streamKeyWidget->setVisible(!hide_streamkey);
-		ui->streamKeyLabel->setVisible(!hide_streamkey);
-		QString connectString = QTStr("Basic.AutoConfig.StreamPage.ConnectAccount").arg(
-			hide_streamkey ? QTStr("Required") : QTStr("Optional")
-		);
-		ui->connectAccount->setText(connectString);
+		ui->streamKeyWidget->setVisible(!hidden_key);
+		ui->streamKeyLabel->setVisible(!hidden_key);
 		ui->connectAccount->setVisible(can_auth && !authenticated);
 		ui->disconnectAccount->setVisible(can_auth && authenticated);
-		ui->connectAccount2->setText(connectString);
 		ui->connectAccount2->setVisible(can_auth && !authenticated);
 	}
 #else
@@ -510,14 +478,14 @@ void OBSBasicSettings::on_disconnectAccount_clicked()
 
 	std::string service = QT_TO_UTF8(ui->service->currentText());
 
-	bool hidden_auth = false;
+	bool hidden_key = false;
 #ifdef AUTH_ENABLED
 	OAuth::DeleteCookies(service);
-	hidden_auth = should_hide_streamkey(service);
+	hidden_key = Auth::IsKeyHidden(service);
 #endif
-	ui->useStreamKey->setVisible(!hidden_auth);
-	ui->streamKeyWidget->setVisible(!hidden_auth);
-	ui->streamKeyLabel->setVisible(!hidden_auth);
+	ui->useStreamKey->setVisible(!hidden_key);
+	ui->streamKeyWidget->setVisible(!hidden_key);
+	ui->streamKeyLabel->setVisible(!hidden_key);
 	ui->connectAccount2->setVisible(true);
 	ui->connectAccount->setVisible(true);
 	ui->disconnectAccount->setVisible(false);

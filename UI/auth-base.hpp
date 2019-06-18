@@ -49,7 +49,8 @@ public:
 
 	static std::shared_ptr<Auth> Create(const std::string &service);
 	static Type AuthType(const std::string &service);
-	static bool KeyHidden(const std::string &service);
+	static bool IsKeyHidden(const std::string &service);
+	static bool CanAuthService(const std::string &service);
 	static void Load();
 	static void Save();
 
