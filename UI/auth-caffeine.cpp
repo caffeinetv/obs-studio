@@ -72,12 +72,11 @@ try {
 
 	if (caff_isSignedIn(instance)) {
 		username = caff_getUsername(instance);
-		return true;
 	} else {
 		switch (caff_refreshAuth(instance, refresh_token.c_str())) {
 		case caff_ResultSuccess:
 			username = caff_getUsername(instance);
-			return true;
+			break;
 		case caff_ResultRefreshTokenRequired:
 		case caff_ResultInfoIncorrect:
 			throw ErrorInfo(Str("CaffeineAuth.Unauthorized"),
@@ -87,6 +86,14 @@ try {
 				Str("CaffeineAuth.SigninFailed"));
 		}
 	}
+
+	OBSBasic *main = OBSBasic::Get();
+	obs_service_t *service = main->GetService();
+	obs_data_t *settings = obs_service_get_settings(service);
+	obs_data_set_string(settings, "username", username.c_str());
+	obs_data_release(settings);
+
+	return true;
 } catch (ErrorInfo info) {
 	QString title = QTStr("Auth.ChannelFailure.Title");
 	QString text = QTStr("Auth.ChannelFailure.Text")

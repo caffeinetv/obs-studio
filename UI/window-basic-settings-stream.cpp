@@ -5,6 +5,7 @@
 #include "obs-app.hpp"
 #include "window-basic-main.hpp"
 #include "qt-wrappers.hpp"
+#include "auth-caffeine.hpp"
 
 #ifdef BROWSER_AVAILABLE
 #include <browser-panel.hpp>
@@ -34,6 +35,8 @@ void OBSBasicSettings::InitStreamPage()
 	ui->connectAccount2->setVisible(false);
 	ui->disconnectAccount->setVisible(false);
 	ui->bandwidthTestEnable->setVisible(false);
+	ui->authSignedInAs->setVisible(false);
+	ui->authSignedInAsLabel->setVisible(false);
 
 	int vertSpacing = ui->topStreamLayout->verticalSpacing();
 
@@ -69,13 +72,13 @@ void OBSBasicSettings::LoadStream1Settings()
 	const char *service = obs_data_get_string(settings, "service");
 	const char *server = obs_data_get_string(settings, "server");
 	const char *key = obs_data_get_string(settings, "key");
+	const char *username = obs_data_get_string(settings, "username");
 
 	if (strcmp(type, "rtmp_custom") == 0) {
 		ui->service->setCurrentIndex(0);
 		ui->customServer->setText(server);
 
 		bool use_auth = obs_data_get_bool(settings, "use_auth");
-		const char *username = obs_data_get_string(settings, "username");
 		const char *password = obs_data_get_string(settings, "password");
 		ui->authUsername->setText(QT_UTF8(username));
 		ui->authPw->setText(QT_UTF8(password));
@@ -106,6 +109,16 @@ void OBSBasicSettings::LoadStream1Settings()
 			idx = 0;
 		}
 		ui->server->setCurrentIndex(idx);
+
+		if (username && username[0]) {
+			ui->authSignedInAsLabel->setVisible(true);
+			ui->authSignedInAs->setVisible(true);
+			ui->authSignedInAs->setText(QT_UTF8(username));
+		}
+		else {
+			ui->authSignedInAsLabel->setVisible(false);
+			ui->authSignedInAs->setVisible(false);
+		}
 	}
 
 	ui->key->setText(key);
@@ -270,9 +283,7 @@ void OBSBasicSettings::on_service_currentIndexChanged(int)
 		auth = main->auth;
 		OnAuthConnected();
 	}
-#endif
 
-#ifdef AUTH_ENABLED
 	bool can_auth = Auth::CanAuthService(service);
 	bool hidden_key = Auth::IsKeyHidden(service);
 	QString connectString =
@@ -293,6 +304,15 @@ void OBSBasicSettings::on_service_currentIndexChanged(int)
 		ui->streamStackWidget->setCurrentIndex(page);
 		ui->streamKeyWidget->setVisible(!hidden_key);
 		ui->streamKeyLabel->setVisible(!hidden_key);
+		ui->authSignedInAs->setVisible(authenticated);
+		ui->authSignedInAsLabel->setVisible(authenticated);
+		if (authenticated) {
+			auto caffeineAuth = dynamic_cast<CaffeineAuth*>(&*auth);
+			if (caffeineAuth) {
+				ui->authSignedInAs->setText(
+					QT_UTF8(caffeineAuth->GetUsername().c_str()));
+			}
+		}
 		ui->connectAccount->setVisible(can_auth && !authenticated);
 		ui->disconnectAccount->setVisible(can_auth && authenticated);
 		ui->connectAccount2->setVisible(can_auth && !authenticated);
@@ -424,6 +444,14 @@ void OBSBasicSettings::OnOAuthStreamKeyConnected()
 		ui->connectAccount2->setVisible(false);
 		ui->disconnectAccount->setVisible(true);
 
+		auto caffeine = dynamic_cast<CaffeineAuth*>(a);
+		if (caffeine) {
+			ui->authSignedInAsLabel->setVisible(true);
+			ui->authSignedInAs->setVisible(true);
+			ui->authSignedInAs->setText(
+				QT_UTF8(caffeine->GetUsername().c_str()));
+		}
+
 		if (strcmp(a->service(), "Twitch") == 0)
 			ui->bandwidthTestEnable->setVisible(true);
 	}
@@ -493,6 +521,8 @@ void OBSBasicSettings::on_disconnectAccount_clicked()
 	ui->connectAccount->setVisible(true);
 	ui->disconnectAccount->setVisible(false);
 	ui->bandwidthTestEnable->setVisible(false);
+	ui->authSignedInAs->setVisible(false);
+	ui->authSignedInAsLabel->setVisible(false);
 	ui->key->setText("");
 }
 
