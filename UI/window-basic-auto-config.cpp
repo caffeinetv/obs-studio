@@ -460,8 +460,10 @@ void AutoConfigStreamPage::on_disconnectAccount_clicked()
 	OAuth::DeleteCookies(service);
 #endif
 
-	ui->streamKeyWidget->setVisible(true);
-	ui->streamKeyLabel->setVisible(true);
+	bool hidden_key = Auth::IsKeyHidden(service);
+
+	ui->streamKeyWidget->setVisible(!hidden_key);
+	ui->streamKeyLabel->setVisible(!hidden_key);
 	ui->connectAccount2->setVisible(true);
 	ui->disconnectAccount->setVisible(false);
 	ui->key->setText("");
