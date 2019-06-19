@@ -303,11 +303,13 @@ std::shared_ptr<Auth> CaffeineAuth::Login(QWidget *parent)
 	QLabel *welcome = new QLabel("Sign in to\nCaffeine");
 	welcome->setAlignment(Qt::AlignHCenter);
 	welcome->setProperty("themeID", "caffeineWelcome");
+	welcome->setFixedHeight(160);
 	form.addRow(welcome);
 
 	QLineEdit *u = new QLineEdit(&dialog);
 	u->setPlaceholderText(QTStr("Username"));
 	u->setProperty("themeID", "caffeineLogin");
+	u->setAttribute(Qt::WA_MacShowFocusRect, 0);
 	form.addRow(u);
 
 	QSpacerItem *spacer = new QSpacerItem(0, 8);
@@ -317,6 +319,7 @@ std::shared_ptr<Auth> CaffeineAuth::Login(QWidget *parent)
 	p->setPlaceholderText(QTStr("Password"));
 	p->setEchoMode(QLineEdit::Password);
 	p->setProperty("themeID", "caffeineLogin");
+	p->setAttribute(Qt::WA_MacShowFocusRect, 0);
 	form.addRow(p);
 
 	spacer = new QSpacerItem(0, 64);
@@ -338,6 +341,7 @@ std::shared_ptr<Auth> CaffeineAuth::Login(QWidget *parent)
 	QLabel      *trouble = new QLabel(
 		R"(Forgot something?<br/><a href="https://www.caffeine.tv/forgot-password" style="color: #009fe0; text-decoration: none">Reset your password</a>)");
 
+	trouble->setFixedHeight(60);
 	trouble->setProperty("themeID", "caffeineTrouble");
 	trouble->setOpenExternalLinks(true);
 	trouble->setAlignment(Qt::AlignHCenter);
