@@ -133,7 +133,8 @@ void CaffeineAuth::LoadUI()
 	/* TODO: Chat */
 
 	// Panel
-	panelDock = QSharedPointer<CaffeineInfoPanel>(new CaffeineInfoPanel(this, instance)).dynamicCast<OBSDock>();
+	panelDock = QSharedPointer<CaffeineInfoPanel>(
+		new CaffeineInfoPanel(this, instance)).dynamicCast<OBSDock>();
 
 	uiLoaded = true;
 	return;
@@ -144,7 +145,8 @@ void CaffeineAuth::OnStreamConfig()
 	OBSBasic *main = OBSBasic::Get();
 	obs_service_t *service = main->GetService();
 	obs_data_t *data = obs_service_get_settings(service);
-	QSharedPointer<CaffeineInfoPanel> panel2 = panelDock.dynamicCast<CaffeineInfoPanel>();
+	QSharedPointer<CaffeineInfoPanel> panel2 =
+		panelDock.dynamicCast<CaffeineInfoPanel>();
 	obs_data_set_string(data, "broadcast_title", panel2->getTitle().c_str());
 	obs_data_set_int(data, "rating", static_cast<int64_t>(panel2->getRating()));
 	obs_service_update(service, data);
@@ -166,7 +168,6 @@ void CaffeineAuth::TryAuth(
 {
 	std::string username = u->text().toStdString();
 	std::string password = p->text().toStdString();
-	std::string otp = "";
 
 	QDialog otpdialog(parent);
 	QString style = otpdialog.styleSheet();
@@ -190,51 +191,58 @@ void CaffeineAuth::TryAuth(
 	otpButtonBox.addButton(login, QDialogButtonBox::ButtonRole::AcceptRole);
 	otpButtonBox.addButton(cancel, QDialogButtonBox::ButtonRole::RejectRole);
 
-	QObject::connect(&otpButtonBox, SIGNAL(accepted()), &otpdialog, SLOT(accept()));
-	QObject::connect(&otpButtonBox, SIGNAL(rejected()), &otpdialog, SLOT(reject()));
+	QObject::connect(&otpButtonBox, SIGNAL(accepted()),
+			&otpdialog, SLOT(accept()));
+	QObject::connect(&otpButtonBox, SIGNAL(rejected()),
+			&otpdialog, SLOT(reject()));
 	otpform.addRow(&otpButtonBox);
 
 	std::string message = "";
 	std::string error = "";
 
-	auto response = caff_signIn(instance, username.c_str(), password.c_str(), otp.c_str());
-	switch (response) {
-	case caff_ResultSuccess:
-		refresh_token = caff_getRefreshToken(instance);
-		prompt->accept();
-		return;
-	case caff_ResultUsernameRequired:
-		message = Str("CaffeineAuth.Failed");
-		error = Str("CaffeineAuth.UsernameRequired");
-		break;
-	case caff_ResultPasswordRequired:
-		message = Str("CaffeineAuth.Failed");
-		error = Str("CaffeineAuth.PasswordRequired");
-		break;
-	case caff_ResultInfoIncorrect:
-		message = Str("CaffeineAuth.Unauthorized");
-		error = Str("CaffeineAuth.IncorrectInfo");
-		break;
-	case caff_ResultMfaOtpRequired:
-	case caff_ResultMfaOtpIncorrect: /* TODO make this different */
-		if (otpdialog.exec() == QDialog::Rejected)
+	caff_Result response = caff_signIn(
+		instance, username.c_str(), password.c_str(), nullptr);
+	do {
+		switch (response) {
+		case caff_ResultSuccess:
+			refresh_token = caff_getRefreshToken(instance);
+			prompt->accept();
 			return;
-		otp = onetimepassword->text().toStdString();
-		return;
-	case caff_ResultLegalAcceptanceRequired:
-		message = Str("CaffeineAuth.Unauthorized");
-		error = Str("CaffeineAuth.TosAcceptanceRequired");
-		break;
-	case caff_ResultEmailVerificationRequired:
-		message = Str("CaffeineAuth.Unauthorized");
-		error = Str("CaffeineAuth.EmailVerificationRequired");
-		break;
-	case caff_ResultFailure:
-	default:
-		message = Str("CaffeineAuth.Failed");
-		error = Str("CaffeineAuth.SigninFailed");
-		break;
-	}
+		case caff_ResultUsernameRequired:
+			message = Str("CaffeineAuth.Failed");
+			error = Str("CaffeineAuth.UsernameRequired");
+			break;
+		case caff_ResultPasswordRequired:
+			message = Str("CaffeineAuth.Failed");
+			error = Str("CaffeineAuth.PasswordRequired");
+			break;
+		case caff_ResultInfoIncorrect:
+			message = Str("CaffeineAuth.Unauthorized");
+			error = Str("CaffeineAuth.IncorrectInfo");
+			break;
+		case caff_ResultMfaOtpRequired:
+		case caff_ResultMfaOtpIncorrect: /* TODO make this different */
+			if (otpdialog.exec() == QDialog::Rejected)
+				return;
+			response = caff_signIn(
+				instance, username.c_str(), password.c_str(),
+				onetimepassword->text().toStdString().c_str());
+			continue;
+		case caff_ResultLegalAcceptanceRequired:
+			message = Str("CaffeineAuth.Unauthorized");
+			error = Str("CaffeineAuth.TosAcceptanceRequired");
+			break;
+		case caff_ResultEmailVerificationRequired:
+			message = Str("CaffeineAuth.Unauthorized");
+			error = Str("CaffeineAuth.EmailVerificationRequired");
+			break;
+		case caff_ResultFailure:
+		default:
+			message = Str("CaffeineAuth.Failed");
+			error = Str("CaffeineAuth.SigninFailed");
+			break;
+		}
+	} while (true);
 
 	QString title = QTStr("Auth.ChannelFailure.Title");
 	QString text = QTStr("Auth.ChannelFailure.Text")
@@ -330,9 +338,11 @@ std::shared_ptr<Auth> CaffeineAuth::Login(QWidget *parent)
 	QObject::connect(&buttonBox, SIGNAL(accepted()), &dialog, SLOT(accept()));
 	QObject::connect(&buttonBox, SIGNAL(rejected()), &dialog, SLOT(reject()));
 
-	std::shared_ptr<CaffeineAuth> auth = std::make_shared<CaffeineAuth>(caffeineDef);
-	QObject::connect(signin, &QPushButton::clicked,
-		[=](bool checked) { auth->TryAuth(u, p, parent, caffeineStyle, prompt); });
+	std::shared_ptr<CaffeineAuth> auth =
+		std::make_shared<CaffeineAuth>(caffeineDef);
+	QObject::connect(signin, &QPushButton::clicked, [=](bool checked) {
+		auth->TryAuth(u, p, parent, caffeineStyle, prompt);
+	});
 	
 	if (dialog.exec() == QDialog::Rejected)
 		return nullptr;

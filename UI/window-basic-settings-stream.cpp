@@ -438,7 +438,7 @@ void OBSBasicSettings::OnAuthConnected()
 	std::string service = QT_TO_UTF8(ui->service->currentText());
 	Auth::Type type = Auth::AuthType(service);
 
-	if (type == Auth::Type::OAuth_StreamKey) {
+	if (type != Auth::Type::None) {
 		OnOAuthStreamKeyConnected();
 	}
 
