@@ -210,13 +210,13 @@ static bool caffeine_start(void *data)
 		obs_data_get_int(settings, BROADCAST_RATING_KEY);
 	obs_data_release(settings);
 
-	caff_Result error =
+	caff_Result result =
 		caff_startBroadcast(context->instance, context,
 			title, rating, NULL,
 			caffeine_stream_started, caffeine_stream_failed);
 
-	if (error) {
-		set_error(output, "%s", obs_module_text("ErrorStartStream"));
+	if (result) {
+		set_error(output, "%s", caff_resultString(result));
 		return false;
 	}
 

@@ -144,7 +144,7 @@
             </property>
             <property name="font">
              <font>
-              <family>Segoe UI</family>
+              <family>Poppins</family>
               <pointsize>14</pointsize>
              </font>
             </property>
@@ -212,7 +212,7 @@
                </property>
                <property name="font">
                 <font>
-                 <family>Segoe UI</family>
+                 <family>Poppins</family>
                  <pointsize>14</pointsize>
                  <kerning>true</kerning>
                 </font>
@@ -244,7 +244,7 @@ color: rgb(255, 255, 255);</string>
                </property>
                <property name="font">
                 <font>
-                 <family>Segoe UI</family>
+                 <family>Poppins</family>
                  <pointsize>14</pointsize>
                 </font>
                </property>
@@ -283,7 +283,7 @@ color: rgb(255, 255, 255);</string>
            <widget class="QPushButton" name="updateButton">
             <property name="font">
              <font>
-              <family>Segoe UI</family>
+              <family>Poppins</family>
               <pointsize>12</pointsize>
              </font>
             </property>
@@ -522,7 +522,7 @@ QPushButton:pressed {
                   </property>
                   <property name="font">
                    <font>
-                    <family>Segoe UI</family>
+                    <family>Poppins</family>
                     <pointsize>14</pointsize>
                    </font>
                   </property>
@@ -568,7 +568,7 @@ color: rgb(255, 255, 255);</string>
                </property>
                <property name="font">
                 <font>
-                 <family>Segoe UI</family>
+                 <family>Poppins</family>
                  <pointsize>10</pointsize>
                 </font>
                </property>
