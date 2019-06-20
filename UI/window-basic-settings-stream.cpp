@@ -5,7 +5,7 @@
 #include "obs-app.hpp"
 #include "window-basic-main.hpp"
 #include "qt-wrappers.hpp"
-#include "auth-caffeine.hpp"
+#include "ui-config.h"
 
 #ifdef BROWSER_AVAILABLE
 #include <browser-panel.hpp>
@@ -13,6 +13,10 @@
 
 #ifdef AUTH_ENABLED
 #include "auth-oauth.hpp"
+#endif
+
+#if CAFFEINE_ENABLED
+#include "auth-caffeine.hpp"
 #endif
 
 enum class ListOpt : int {
@@ -110,6 +114,7 @@ void OBSBasicSettings::LoadStream1Settings()
 		}
 		ui->server->setCurrentIndex(idx);
 
+#if CAFFEINE_ENABLED
 		if (username && username[0]) {
 			ui->authSignedInAsLabel->setVisible(true);
 			ui->authSignedInAs->setVisible(true);
@@ -119,6 +124,7 @@ void OBSBasicSettings::LoadStream1Settings()
 			ui->authSignedInAsLabel->setVisible(false);
 			ui->authSignedInAs->setVisible(false);
 		}
+#endif
 	}
 
 	ui->key->setText(key);
@@ -304,15 +310,15 @@ void OBSBasicSettings::on_service_currentIndexChanged(int)
 		ui->streamStackWidget->setCurrentIndex(page);
 		ui->streamKeyWidget->setVisible(!hidden_key);
 		ui->streamKeyLabel->setVisible(!hidden_key);
-		ui->authSignedInAs->setVisible(authenticated);
-		ui->authSignedInAsLabel->setVisible(authenticated);
-		if (authenticated) {
-			auto caffeineAuth = dynamic_cast<CaffeineAuth*>(&*auth);
-			if (caffeineAuth) {
-				ui->authSignedInAs->setText(
-					QT_UTF8(caffeineAuth->GetUsername().c_str()));
-			}
+#if CAFFEINE_ENABLED
+		auto caffeineAuth = dynamic_cast<CaffeineAuth*>(&*auth);
+		ui->authSignedInAs->setVisible(authenticated && caffeineAuth);
+		ui->authSignedInAsLabel->setVisible(authenticated && caffeineAuth);
+		if (caffeineAuth) {
+			ui->authSignedInAs->setText(
+				QT_UTF8(caffeineAuth->GetUsername().c_str()));
 		}
+#endif
 		ui->connectAccount->setVisible(can_auth && !authenticated);
 		ui->disconnectAccount->setVisible(can_auth && authenticated);
 		ui->connectAccount2->setVisible(can_auth && !authenticated);
@@ -444,6 +450,7 @@ void OBSBasicSettings::OnOAuthStreamKeyConnected()
 		ui->connectAccount2->setVisible(false);
 		ui->disconnectAccount->setVisible(true);
 
+#if CAFFEINE_ENABLED
 		auto caffeine = dynamic_cast<CaffeineAuth*>(a);
 		if (caffeine) {
 			ui->authSignedInAsLabel->setVisible(true);
@@ -451,6 +458,7 @@ void OBSBasicSettings::OnOAuthStreamKeyConnected()
 			ui->authSignedInAs->setText(
 				QT_UTF8(caffeine->GetUsername().c_str()));
 		}
+#endif
 
 		if (strcmp(a->service(), "Twitch") == 0)
 			ui->bandwidthTestEnable->setVisible(true);
