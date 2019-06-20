@@ -183,16 +183,17 @@ void CaffeineAuth::TryAuth(
 	QString style = otpdialog.styleSheet();
 	style += caffeineStyle;
 	QFormLayout otpform(&otpdialog);
-	otpdialog.setWindowTitle("Caffeine Login (One Time Password)");
-	//otpform.addRow(new QLabel("Caffeine One Time Password"));
+	otpdialog.setWindowTitle("Verification");
+	QLabel *otplabel = new QLabel("Enter the code the verification code\nthat was sent to your email.");
+	otpform.addRow(otplabel);
 
 	QLineEdit *onetimepassword = new QLineEdit(&otpdialog);
 	onetimepassword->setEchoMode(QLineEdit::Password);
-	onetimepassword->setPlaceholderText(QTStr("Password"));
+	onetimepassword->setPlaceholderText(QTStr("Verification Code"));
 	//otpform.addRow(new QLabel(QTStr("Password")), onetimepassword);
 	otpform.addWidget(onetimepassword);
 
-	QPushButton *login = new QPushButton(QTStr("Login"));
+	QPushButton *login = new QPushButton(QTStr("Sign in"));
 	QPushButton *cancel = new QPushButton(QTStr("Cancel"));
 
 	QDialogButtonBox otpButtonBox(Qt::Horizontal, &otpdialog);
@@ -201,57 +202,60 @@ void CaffeineAuth::TryAuth(
 	otpButtonBox.addButton(cancel, QDialogButtonBox::ButtonRole::RejectRole);
 
 	QObject::connect(&otpButtonBox, SIGNAL(accepted()),
-			&otpdialog, SLOT(accept()));
+		&otpdialog, SLOT(accept()));
 	QObject::connect(&otpButtonBox, SIGNAL(rejected()),
-			&otpdialog, SLOT(reject()));
+		&otpdialog, SLOT(reject()));
 	otpform.addRow(&otpButtonBox);
-
-	std::string message = "";
-	std::string error = "";
 
 	caff_Result response = caff_signIn(
 		instance, username.c_str(), password.c_str(), nullptr);
-	do {
-		switch (response) {
-		case caff_ResultSuccess:
-			refresh_token = caff_getRefreshToken(instance);
-			prompt->accept();
+
+	while (response == caff_ResultMfaOtpRequired ||
+		response == caff_ResultMfaOtpIncorrect) {
+		if (otpdialog.exec() == QDialog::Rejected)
 			return;
-		case caff_ResultUsernameRequired:
-			message = Str("CaffeineAuth.Failed");
-			error = Str("CaffeineAuth.UsernameRequired");
-			break;
-		case caff_ResultPasswordRequired:
-			message = Str("CaffeineAuth.Failed");
-			error = Str("CaffeineAuth.PasswordRequired");
-			break;
-		case caff_ResultInfoIncorrect:
-			message = Str("CaffeineAuth.Unauthorized");
-			error = Str("CaffeineAuth.IncorrectInfo");
-			break;
-		case caff_ResultMfaOtpRequired:
-		case caff_ResultMfaOtpIncorrect: /* TODO make this different */
-			if (otpdialog.exec() == QDialog::Rejected)
-				return;
-			response = caff_signIn(
-				instance, username.c_str(), password.c_str(),
-				onetimepassword->text().toStdString().c_str());
-			continue;
-		case caff_ResultLegalAcceptanceRequired:
-			message = Str("CaffeineAuth.Unauthorized");
-			error = Str("CaffeineAuth.TosAcceptanceRequired");
-			break;
-		case caff_ResultEmailVerificationRequired:
-			message = Str("CaffeineAuth.Unauthorized");
-			error = Str("CaffeineAuth.EmailVerificationRequired");
-			break;
-		case caff_ResultFailure:
-		default:
-			message = Str("CaffeineAuth.Failed");
-			error = Str("CaffeineAuth.SigninFailed");
-			break;
-		}
-	} while (true);
+
+		// change message for next time through the loop
+		otplabel->setText("The verification code was incorrect.");
+
+		response = caff_signIn(
+			instance, username.c_str(), password.c_str(),
+			onetimepassword->text().toStdString().c_str());
+	}
+
+	std::string message;
+	std::string error;
+	switch (response) {
+	case caff_ResultSuccess:
+		refresh_token = caff_getRefreshToken(instance);
+		prompt->accept();
+		return;
+	case caff_ResultUsernameRequired:
+		message = Str("CaffeineAuth.Failed");
+		error = Str("CaffeineAuth.UsernameRequired");
+		break;
+	case caff_ResultPasswordRequired:
+		message = Str("CaffeineAuth.Failed");
+		error = Str("CaffeineAuth.PasswordRequired");
+		break;
+	case caff_ResultInfoIncorrect:
+		message = Str("CaffeineAuth.Unauthorized");
+		error = Str("CaffeineAuth.IncorrectInfo");
+		break;
+	case caff_ResultLegalAcceptanceRequired:
+		message = Str("CaffeineAuth.Unauthorized");
+		error = Str("CaffeineAuth.TosAcceptanceRequired");
+		break;
+	case caff_ResultEmailVerificationRequired:
+		message = Str("CaffeineAuth.Unauthorized");
+		error = Str("CaffeineAuth.EmailVerificationRequired");
+		break;
+	case caff_ResultFailure:
+	default:
+		message = Str("CaffeineAuth.Failed");
+		error = Str("CaffeineAuth.SigninFailed");
+		break;
+	}
 
 	QString title = QTStr("Auth.ChannelFailure.Title");
 	QString text = QTStr("Auth.ChannelFailure.Text")
@@ -338,7 +342,7 @@ std::shared_ptr<Auth> CaffeineAuth::Login(QWidget *parent)
 	spacer = new QSpacerItem(0, 16);
 	form.addItem(spacer);
 
-	QLabel      *trouble = new QLabel(
+	QLabel *trouble = new QLabel(
 		R"(Forgot something?<br/><a href="https://www.caffeine.tv/forgot-password" style="color: #009fe0; text-decoration: none">Reset your password</a>)");
 
 	trouble->setFixedHeight(60);
@@ -350,7 +354,7 @@ std::shared_ptr<Auth> CaffeineAuth::Login(QWidget *parent)
 	spacer = new QSpacerItem(0, 69);
 	form.addItem(spacer);
 
-	QLabel      *signup = new QLabel(
+	QLabel *signup = new QLabel(
 		R"(New to Caffeine? <b><a href="https://www.caffeine.tv/sign-up" style="color: white; text-decoration: none">Sign Up</a></b>)"
 	);
 
