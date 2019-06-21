@@ -311,7 +311,7 @@ void OBSBasicSettings::on_service_currentIndexChanged(int)
 		ui->streamKeyWidget->setVisible(!hidden_key);
 		ui->streamKeyLabel->setVisible(!hidden_key);
 #if CAFFEINE_ENABLED
-		auto caffeineAuth = dynamic_cast<CaffeineAuth*>(&*auth);
+		auto caffeineAuth = std::dynamic_pointer_cast<CaffeineAuth>(auth);
 		ui->authSignedInAs->setVisible(authenticated && caffeineAuth);
 		ui->authSignedInAsLabel->setVisible(authenticated && caffeineAuth);
 		if (caffeineAuth) {
