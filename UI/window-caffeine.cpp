@@ -26,9 +26,6 @@ void CaffeineInfoPanel::updateClicked(bool)
 		obs_service_update(service, data);
 		obs_data_release(data);
 	}
-
-	caff_setTitle(caffeineInstance, title.c_str());
-	caff_setRating(caffeineInstance, rating);
 }
 
 void CaffeineInfoPanel::viewOnWebClicked(bool)
