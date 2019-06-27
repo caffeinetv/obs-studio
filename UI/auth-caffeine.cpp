@@ -26,6 +26,8 @@
 #include "ui-config.h"
 #include "obf.h"
 
+#include "ui_CaffeineSignIn.h"
+
 using namespace json11;
 
 /* ------------------------------------------------------------------------- */
@@ -46,10 +48,10 @@ static Auth::Def caffeineDef = {
 /* ------------------------------------------------------------------------- */
 
 static int addFonts() {
-	QFontDatabase::addApplicationFont(":/res/fonts/Poppins-Regular.ttf");
-	QFontDatabase::addApplicationFont(":/res/fonts/Poppins-Bold.ttf");
-	QFontDatabase::addApplicationFont(":/res/fonts/Poppins-Light.ttf");
-	QFontDatabase::addApplicationFont(":/res/fonts/Poppins-ExtraLight.ttf");
+	QFontDatabase::addApplicationFont(":/caffeine/fonts/Poppins-Regular.ttf");
+	QFontDatabase::addApplicationFont(":/caffeine/fonts/Poppins-Bold.ttf");
+	QFontDatabase::addApplicationFont(":/caffeine/fonts/Poppins-Light.ttf");
+	QFontDatabase::addApplicationFont(":/caffeine/fonts/Poppins-ExtraLight.ttf");
 	return 0;
 }
 
@@ -57,7 +59,6 @@ CaffeineAuth::CaffeineAuth(const Def &d)
 	: OAuthStreamKey(d)
 {
 	UNUSED_PARAMETER(d);
-	static int once = addFonts();
 	instance = caff_createInstance();
 }
 
@@ -176,215 +177,109 @@ bool CaffeineAuth::RetryLogin()
 	return ptr != nullptr;
 }
 
-void CaffeineAuth::TryAuth(
-	QLineEdit * u,
-	QLineEdit * p,
-	QWidget * parent,
-	QString const & caffeineStyle,
-	QDialog * prompt)
+void CaffeineAuth::TryAuth(Ui::CaffeineSignInDialog *ui, QDialog *dialog,
+	std::string &passwordForOtp)
 {
-	std::string username = u->text().toStdString();
-	std::string password = p->text().toStdString();
-
-	QDialog otpdialog(parent);
-	QString style = otpdialog.styleSheet();
-	style += caffeineStyle;
-	QFormLayout otpform(&otpdialog);
-	otpdialog.setWindowTitle("Verification");
-	QLabel *otplabel = new QLabel("Enter the code the verification code\nthat was sent to your email.");
-	otpform.addRow(otplabel);
-
-	QLineEdit *onetimepassword = new QLineEdit(&otpdialog);
-	onetimepassword->setEchoMode(QLineEdit::Password);
-	onetimepassword->setPlaceholderText(QTStr("Verification Code"));
-	//otpform.addRow(new QLabel(QTStr("Password")), onetimepassword);
-	otpform.addWidget(onetimepassword);
-
-	QPushButton *login = new QPushButton(QTStr("Sign in"));
-	QPushButton *cancel = new QPushButton(QTStr("Cancel"));
-
-	QDialogButtonBox otpButtonBox(Qt::Horizontal, &otpdialog);
-
-	otpButtonBox.addButton(login, QDialogButtonBox::ButtonRole::AcceptRole);
-	otpButtonBox.addButton(cancel, QDialogButtonBox::ButtonRole::RejectRole);
-
-	QObject::connect(&otpButtonBox, SIGNAL(accepted()),
-		&otpdialog, SLOT(accept()));
-	QObject::connect(&otpButtonBox, SIGNAL(rejected()),
-		&otpdialog, SLOT(reject()));
-	otpform.addRow(&otpButtonBox);
-
-	caff_Result response = caff_signIn(
-		instance, username.c_str(), password.c_str(), nullptr);
-
-	while (response == caff_ResultMfaOtpRequired ||
-		response == caff_ResultMfaOtpIncorrect) {
-		if (otpdialog.exec() == QDialog::Rejected)
-			return;
-
-		// change message for next time through the loop
-		otplabel->setText("The verification code was incorrect.");
-
-		response = caff_signIn(
-			instance, username.c_str(), password.c_str(),
-			onetimepassword->text().toStdString().c_str());
+	std::string username = ui->usernameEdit->text().toStdString();
+	std::string otp;
+	std::string password;
+	if (passwordForOtp.empty()) {
+		password = ui->passwordEdit->text().toStdString();
+	} else {
+		otp = ui->passwordEdit->text().toStdString();
+		password = passwordForOtp;
 	}
 
-	std::string message;
-	std::string error;
-	switch (response) {
+	auto result = caff_signIn(
+		instance, username.c_str(), password.c_str(), otp.c_str());
+	switch (result) {
 	case caff_ResultSuccess:
 		refresh_token = caff_getRefreshToken(instance);
-		prompt->accept();
+		dialog->accept();
+		return;
+	case caff_ResultMfaOtpRequired:
+		ui->messageLabel->setText(R"(Enter the authentication code that was sent to your email. <a href="https://www.caffeine.tv" style="text-decoration:none;color:#009fe0;">Resend email.</a>)");
+		ui->usernameEdit->hide();
+		passwordForOtp = ui->passwordEdit->text().toStdString();
+		ui->passwordEdit->clear();
+		ui->passwordEdit->setPlaceholderText("Enter code");
+		ui->signInButton->setText("Continue");
+		ui->newUserFooter->hide();
+		return;
+	case caff_ResultMfaOtpIncorrect:
+		ui->passwordEdit->clear();
+		ui->messageLabel->setText("The verification code was incorrect.");
 		return;
 	case caff_ResultUsernameRequired:
-		message = Str("CaffeineAuth.Failed");
-		error = Str("CaffeineAuth.UsernameRequired");
-		break;
+		ui->messageLabel->setText(Str("CaffeineAuth.UsernameRequired"));
+		return;
 	case caff_ResultPasswordRequired:
-		message = Str("CaffeineAuth.Failed");
-		error = Str("CaffeineAuth.PasswordRequired");
-		break;
+		ui->messageLabel->setText(Str("CaffeineAuth.PasswordRequired"));
+		return;
 	case caff_ResultInfoIncorrect:
-		message = Str("CaffeineAuth.Unauthorized");
-		error = Str("CaffeineAuth.IncorrectInfo");
-		break;
+		ui->messageLabel->setText(Str("CaffeineAuth.IncorrectInfo"));
+		return;
 	case caff_ResultLegalAcceptanceRequired:
-		message = Str("CaffeineAuth.Unauthorized");
-		error = Str("CaffeineAuth.TosAcceptanceRequired");
-		break;
+		ui->messageLabel->setText(Str("CaffeineAuth.TosAcceptanceRequired"));
+		return;
 	case caff_ResultEmailVerificationRequired:
-		message = Str("CaffeineAuth.Unauthorized");
-		error = Str("CaffeineAuth.EmailVerificationRequired");
-		break;
+		ui->messageLabel->setText(Str("CaffeineAuth.EmailVerificationRequired"));
+		return;
 	case caff_ResultFailure:
 	default:
-		message = Str("CaffeineAuth.Failed");
-		error = Str("CaffeineAuth.SigninFailed");
-		break;
+		ui->messageLabel->setText(Str("CaffeineAuth.SigninFailed"));
+		return;
 	}
-
-	QString title = QTStr("Auth.ChannelFailure.Title");
-	QString text = QTStr("Auth.ChannelFailure.Text")
-		.arg("Caffeine", message.c_str(), error.c_str());
-
-	QMessageBox::warning(OBSBasic::Get(), title, text);
-
-	blog(LOG_WARNING, "%s: %s: %s",
-		__FUNCTION__,
-		message.c_str(),
-		error.c_str());
-	return;
 }
 
 std::shared_ptr<Auth> CaffeineAuth::Login(QWidget *parent)
 {
-	QDialog dialog(parent);
-	QDialog *prompt = &dialog;
-	QFormLayout form(&dialog);
-	dialog.setObjectName("caffeinelogin");
-	dialog.setProperty("themeID", "caffeineLogin");
-	form.setContentsMargins(0, 0, 0, 0);
-	form.setSpacing(0);
-	QString caffeineStyle = R"(
-		* { background-color: white; color: black; margin:0; padding:0; }
-		* [themeID="caffeineLogo"] {margin: 31px 0 23px 0;}
-		* [themeID="caffeineWelcome"] {line-height: 48px; margin-bottom: 64px; font-weight: normal; font-family: "Poppins ExtraLight", SegoeUI, sans-serif; font-size: 32px;}
-		QLineEdit {width: 280px; margin: 0px 195px 0px 195px; padding: 10px 20px 10px 20px; font-weight: normal; font-family: "Poppins Light", SegoeUI, sans-serif; border-radius: 0px; border: 1px solid #f2f2f2; border-top: 4px solid #f2f2f2;}
-		QPushButton {width: 280px; height:80px; font-family: Poppins, SegoeUI, sans-serif; font-size: 24px; background-color: #009fe0; color:white; border-radius: 40px; border: 0px solid #009fe0}
-		QPushButton::hover {background-color:#007cad;}
-		* [themeID="caffeineLogin"] {font-weight: normal; font-family: Poppins, SegoeUI, sans-serif; font-size: 14px;}
-		* [themeID="caffeineTrouble"] {padding-left: 29px; padding-right: 29px; font-weight: normal; font-family: Poppins, SegoeUI, sans-serif; font-size: 18px;}
-		* [themeID="caffeineFooter"] { font-family: Poppins, SegoeUI, sans-serif; background-color: #009fe0; color: white; width: 100%; padding: 18 0 16 0; margin: 10 0 0 0;}
-	)";
+	static int once = addFonts();
+	UNUSED_PARAMETER(once);
+	const auto flags =
+		Qt::WindowTitleHint
+		| Qt::WindowSystemMenuHint
+		| Qt::WindowCloseButtonHint;
 
-	QString style = dialog.styleSheet();
-	style += caffeineStyle;
+	QDialog dialog(parent, flags);
+	auto ui = new Ui::CaffeineSignInDialog;
+	ui->setupUi(&dialog);
+	// For some reason the SVG appears in the designer but not in the dialog
+	QIcon icon(":/caffeine/images/CaffeineLogo.svg");
+	ui->logo->setPixmap(icon.pixmap(76, 66));
 
-	dialog.setStyleSheet(style);
-	dialog.setWindowTitle("Sign In");
-	
-	QIcon icon(":/res/images/CaffeineLogo.svg");
-	QLabel *logo = new QLabel();
-	logo->setPixmap(icon.pixmap(76, 66));
-	logo->setAlignment(Qt::AlignHCenter);
-	logo->setProperty("themeID", "caffeineLogo");
-	form.addRow(logo);
+	// Don't highlight text boxes
+	for (auto edit : dialog.findChildren<QLineEdit*>()) {
+		edit->setAttribute(Qt::WA_MacShowFocusRect, false);
+	}
 
-	QLabel *welcome = new QLabel("Sign in to\nCaffeine");
-	welcome->setAlignment(Qt::AlignHCenter);
-	welcome->setProperty("themeID", "caffeineWelcome");
-	welcome->setFixedHeight(160);
-	form.addRow(welcome);
-
-	QLineEdit *u = new QLineEdit(&dialog);
-	u->setPlaceholderText(QTStr("Username"));
-	u->setProperty("themeID", "caffeineLogin");
-	u->setAttribute(Qt::WA_MacShowFocusRect, 0);
-	form.addRow(u);
-
-	QSpacerItem *spacer = new QSpacerItem(0, 8);
-	form.addItem(spacer);
-
-	QLineEdit *p = new QLineEdit(&dialog);
-	p->setPlaceholderText(QTStr("Password"));
-	p->setEchoMode(QLineEdit::Password);
-	p->setProperty("themeID", "caffeineLogin");
-	p->setAttribute(Qt::WA_MacShowFocusRect, 0);
-	form.addRow(p);
-
-	spacer = new QSpacerItem(0, 64);
-	form.addItem(spacer);
-
-	QPushButton *signin  = new QPushButton(QTStr("Sign in"));
-	signin->setCursor(Qt::PointingHandCursor);
-	QDialogButtonBox buttonBox(Qt::Horizontal, &dialog);
-	buttonBox.setCenterButtons(true);
-	buttonBox.addButton(signin,  QDialogButtonBox::ButtonRole::ActionRole);
-	form.addRow(&buttonBox);
-	
-	QObject::connect(&buttonBox, SIGNAL(accepted()), &dialog, SLOT(accept()));
-	QObject::connect(&buttonBox, SIGNAL(rejected()), &dialog, SLOT(reject()));
-
-	spacer = new QSpacerItem(0, 16);
-	form.addItem(spacer);
-
-	QLabel *trouble = new QLabel(
-		R"(Forgot something?<br/><a href="https://www.caffeine.tv/forgot-password" style="color: #009fe0; text-decoration: none">Reset your password</a>)");
-
-	trouble->setFixedHeight(60);
-	trouble->setProperty("themeID", "caffeineTrouble");
-	trouble->setOpenExternalLinks(true);
-	trouble->setAlignment(Qt::AlignHCenter);
-	form.addRow(trouble);
-
-	spacer = new QSpacerItem(0, 69);
-	form.addItem(spacer);
-
-	QLabel *signup = new QLabel(
-		R"(New to Caffeine? <b><a href="https://www.caffeine.tv/sign-up" style="color: white; text-decoration: none">Sign Up</a></b>)"
-	);
-
-	signup->setProperty("themeID", "caffeineFooter");
-	signup->setOpenExternalLinks(true);
-	signup->setAlignment(Qt::AlignHCenter);
-	form.addRow(signup);
-
-	dialog.setFixedSize(dialog.sizeHint());
+	ui->messageLabel->clear();
 
 	std::shared_ptr<CaffeineAuth> auth =
 		std::make_shared<CaffeineAuth>(caffeineDef);
-	QObject::connect(signin, &QPushButton::clicked, [=](bool checked) {
-		auth->TryAuth(u, p, parent, caffeineStyle, prompt);
-	});
+
+	std::string origPassword;
+	connect(ui->signInButton, &QPushButton::clicked,
+		[&](bool checked) {
+			auth->TryAuth(ui, &dialog, origPassword);
+		});
+
+	// Only used for One-time-password "resend email" link. resending the
+	// email is just attempting the sign-in without one-time password
+	// included
+	connect(ui->messageLabel, &QLabel::linkActivated,
+		[&](const QString &link) {
+			auto username = ui->usernameEdit->text().toStdString();
+			caff_signIn(auth->instance, username.c_str(),
+				origPassword.c_str(), nullptr);
+		});
 	
 	if (dialog.exec() == QDialog::Rejected)
 		return nullptr;
 
-	if (auth) {
-		if (auth->GetChannelInfo())
-			return auth;
-	}
+	if (auth->GetChannelInfo())
+		return auth;
+
 	return nullptr;
 }
 

@@ -10,6 +10,10 @@ class QWidget;
 class QString;
 class QDialog;
 
+namespace Ui {
+	class CaffeineSignInDialog;
+}
+
 class CaffeineAuth : public OAuthStreamKey {
 	Q_OBJECT
 	caff_InstanceHandle instance;
@@ -21,12 +25,7 @@ class CaffeineAuth : public OAuthStreamKey {
 
 	std::string username;
 
-	void TryAuth(
-		QLineEdit * u,
-		QLineEdit * p,
-		QWidget * parent,
-		QString const & caffeineStyle,
-		QDialog * prompt);
+	void TryAuth(Ui::CaffeineSignInDialog * ui, QDialog * dialog, std::string &origPassword);
 	virtual bool RetryLogin() override;
 
 	virtual void SaveInternal() override;

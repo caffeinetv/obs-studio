@@ -375,6 +375,7 @@ set(obs_QRC
 
 if(CAFFEINE_ENABLED)
 	list(APPEND obs_UI
+		forms/CaffeineSignIn.ui
 		forms/CaffeinePanel.ui
 	)
 	list(APPEND obs_HEADERS
@@ -382,6 +383,9 @@ if(CAFFEINE_ENABLED)
 	)
 	list(APPEND obs_SOURCES
 		window-caffeine.cpp
+	)
+	list(APPEND obs_QRC
+		forms/Caffeine.qrc
 	)
 endif()
 
