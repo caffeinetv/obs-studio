@@ -5,9 +5,7 @@
 #include "window-dock.hpp"
 
 class CaffeineChat;
-class QLineEdit;
 class QWidget;
-class QString;
 class QDialog;
 
 namespace Ui {

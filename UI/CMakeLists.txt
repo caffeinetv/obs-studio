@@ -152,8 +152,6 @@ endif()
 if(CAFFEINE_ENABLED)
 	find_package(Threads REQUIRED)
 	add_definitions(${THREADS_DEFINITIONS})
-	find_package(FFmpeg REQUIRED
-		COMPONENTS avfilter avutil avformat avcodec avdevice swscale swresample)
 
 	if(WIN32)
 		set(caffeine_PLATFORM_DEPS

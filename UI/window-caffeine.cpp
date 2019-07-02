@@ -1,5 +1,8 @@
 #include "window-caffeine.hpp"
-#include <caffeine.h>
+#include "window-basic-main.hpp"
+
+#include "ui_CaffeinePanel.h"
+
 #include <QDesktopServices>
 
 void CaffeineInfoPanel::registerDockWidget()

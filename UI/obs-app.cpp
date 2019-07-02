@@ -1404,7 +1404,6 @@ QString OBSTranslator::translate(const char *context, const char *sourceText,
 			return QString(sourceText);
 
 	UNUSED_PARAMETER(context);
-	UNUSED_PARAMETER(disambiguation);
 	UNUSED_PARAMETER(n);
 	return QT_UTF8(out);
 }

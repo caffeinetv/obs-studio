@@ -1,42 +1,15 @@
 #include "auth-caffeine.hpp"
 
 #include <QFontDatabase>
-#include <QPushButton>
-#include <QHBoxLayout>
-#include <QVBoxLayout>
-#include <QPushButton>
-#include <QLineEdit>
-#include <QLabel>
-
-#include <qt-wrappers.hpp>
-#include <obs-app.hpp>
+#include <QMessageBox>
 
 #include "window-basic-main.hpp"
-#include "remote-text.hpp"
-#include "window-dock.hpp"
 #include "window-caffeine.hpp"
 
-#include <util/threading.h>
-#include <util/platform.h>
-
-#include <json11.hpp>
-
-#include <ctime>
-
 #include "ui-config.h"
-#include "obf.h"
 
 #include "ui_CaffeineSignIn.h"
 
-using namespace json11;
-
-/* ------------------------------------------------------------------------- */
-
-#define CAFFEINE_AUTH_URL \
-	"https://obsproject.com/app-auth/caffeine?action=redirect"
-#define CAFFEINE_TOKEN_URL "https://obsproject.com/app-auth/caffeine-token"
-
-#define CAFFEINE_SCOPE_VERSION 1
 
 static Auth::Def caffeineDef = {"Caffeine", Auth::Type::Custom, true};
 
@@ -258,7 +231,7 @@ std::shared_ptr<Auth> CaffeineAuth::Login(QWidget *parent)
 		std::make_shared<CaffeineAuth>(caffeineDef);
 
 	std::string origPassword;
-	connect(ui->signInButton, &QPushButton::clicked, [&](bool checked) {
+	connect(ui->signInButton, &QPushButton::clicked, [&](bool) {
 		auth->TryAuth(ui, &dialog, origPassword);
 	});
 
@@ -266,7 +239,7 @@ std::shared_ptr<Auth> CaffeineAuth::Login(QWidget *parent)
 	// email is just attempting the sign-in without one-time password
 	// included
 	connect(ui->messageLabel, &QLabel::linkActivated,
-		[&](const QString &link) {
+		[&](const QString &) {
 			auto username = ui->usernameEdit->text().toStdString();
 			caff_signIn(auth->instance, username.c_str(),
 				    origPassword.c_str(), nullptr);

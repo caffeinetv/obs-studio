@@ -31,7 +31,6 @@ OAuthLogin::OAuthLogin(QWidget *parent, const std::string &url, bool token)
 	if (!cef) {
 		return;
 	}
-#endif
 
 	setWindowTitle("Auth");
 	setMinimumSize(400, 400);
@@ -43,7 +42,6 @@ OAuthLogin::OAuthLogin(QWidget *parent, const std::string &url, bool token)
 
 	OBSBasic::InitBrowserPanelSafeBlock();
 
-#ifdef BROWSER_AVAILABLE
 	cefWidget = cef->create_widget(nullptr, url, panel_cookies);
 	if (!cefWidget) {
 		fail = true;
@@ -54,7 +52,6 @@ OAuthLogin::OAuthLogin(QWidget *parent, const std::string &url, bool token)
 		SLOT(setWindowTitle(const QString &)));
 	connect(cefWidget, SIGNAL(urlChanged(const QString &)), this,
 		SLOT(urlChanged(const QString &)));
-#endif
 
 	QPushButton *close = new QPushButton(QTStr("Cancel"));
 	connect(close, &QAbstractButton::clicked, this, &QDialog::reject);
@@ -65,10 +62,9 @@ OAuthLogin::OAuthLogin(QWidget *parent, const std::string &url, bool token)
 	bottomLayout->addStretch();
 
 	QVBoxLayout *topLayout = new QVBoxLayout(this);
-#ifdef BROWSER_AVAILABLE
 	topLayout->addWidget(cefWidget);
-#endif
 	topLayout->addLayout(bottomLayout);
+#endif
 }
 
 OAuthLogin::~OAuthLogin()
@@ -186,8 +182,8 @@ bool OAuth::TokenExpired()
 }
 
 bool OAuth::GetToken(const char *url, const std::string &client_id,
-		     int scope_ver, const std::string &auth_code,
-		     bool retry) try {
+		     int scope_ver, const std::string &auth_code, bool retry)
+try {
 	std::string output;
 	std::string error;
 	std::string desc;

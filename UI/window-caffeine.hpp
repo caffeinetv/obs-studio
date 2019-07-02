@@ -1,20 +1,17 @@
 #pragma once
-#include "ui_CaffeinePanel.h"
-#include <QDialog>
-#include <QPointer>
-#include <QDockWidget>
-#include <QBoxLayout>
-#include <QLayout>
 
 #include <memory>
 
 #include "window-dock.hpp"
-#include "window-basic-main.hpp"
 #include "auth-caffeine.hpp"
 
 #include <caffeine.h>
 
 Q_DECLARE_METATYPE(caff_Rating);
+
+namespace Ui {
+class CaffeinePanel;
+}
 
 class CaffeineInfoPanel : public OBSDock {
 	Q_OBJECT
