@@ -54,6 +54,7 @@ CaffeineInfoPanel::CaffeineInfoPanel(CaffeineAuth* owner,
 
 	// Set up title
 	ui->title->setText(QString::fromStdString(getTitle()));
+	ui->title->setAttribute(Qt::WA_MacShowFocusRect, false);
 
 	// Buttons
 	connect(ui->updateButton, SIGNAL(clicked(bool)), SLOT(updateClicked(bool)));

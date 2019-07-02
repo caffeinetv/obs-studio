@@ -6,8 +6,8 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>297</width>
-    <height>248</height>
+    <width>292</width>
+    <height>253</height>
    </rect>
   </property>
   <property name="floating">
@@ -168,7 +168,7 @@
                </property>
                <property name="minimumSize">
                 <size>
-                 <width>0</width>
+                 <width>76</width>
                  <height>32</height>
                 </size>
                </property>
