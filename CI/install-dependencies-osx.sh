@@ -35,8 +35,11 @@ ccache -s || echo "CCache is not available."
 
 # Fetch and untar prebuilt OBS deps that are compatible with older versions of OSX
 hr "Downloading OBS deps"
-wget --quiet --retry-connrefused --waitretry=1 https://obs-nightly.s3.amazonaws.com/osx-deps-2018-08-09.tar.gz
-tar -xf ./osx-deps-2018-08-09.tar.gz -C /tmp
+#TODO: Revert this once libcaffeine is included in deps
+#wget --quiet --retry-connrefused --waitretry=1 https://obs-nightly.s3.amazonaws.com/osx-deps-2018-08-09.tar.gz
+#tar -xf ./osx-deps-2018-08-09.tar.gz -C /tmp
+wget --quiet --retry-connrefused --waitretry=1 https://static.caffeine.tv/broadcaster/osx-deps-caffeine-2019-06-04.tar.gz
+tar -xf ./osx-deps-caffeine-2019-06-04.tar.gz -C /tmp
 
 # Fetch vlc codebase
 hr "Downloading VLC repo"
