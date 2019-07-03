@@ -5,7 +5,6 @@
 #include "obs-app.hpp"
 #include "window-basic-main.hpp"
 #include "qt-wrappers.hpp"
-#include "ui-config.h"
 
 #ifdef BROWSER_AVAILABLE
 #include <browser-panel.hpp>
@@ -117,6 +116,7 @@ void OBSBasicSettings::LoadStream1Settings()
 
 #if CAFFEINE_ENABLED
 		if (username && username[0]) {
+			lastSignedInAs = username;
 			ui->authSignedInAsLabel->setVisible(true);
 			ui->authSignedInAs->setVisible(true);
 			ui->authSignedInAs->setText(QT_UTF8(username));
@@ -160,6 +160,12 @@ void OBSBasicSettings::SaveStream1Settings()
 		obs_data_set_string(
 			settings, "server",
 			QT_TO_UTF8(ui->server->currentData().toString()));
+#if CAFFEINE_ENABLED
+		if (ui->service->currentText() == "Caffeine") {
+			obs_data_set_string(settings, "username",
+					    QT_TO_UTF8(lastSignedInAs));
+		}
+#endif
 	} else {
 		obs_data_set_string(settings, "server",
 				    QT_TO_UTF8(ui->customServer->text()));
@@ -302,42 +308,35 @@ void OBSBasicSettings::on_service_currentIndexChanged(int)
 	ui->connectAccount->setText(connectString);
 	ui->connectAccount2->setText(connectString);
 
-	if (lastService != service.c_str()) {
-		if (lastService.isEmpty()) {
-			lastService = service.c_str();
-			lastServiceKey = ui->key->text();
-		} else {
-			// Don't show the stream key from the previous service
-			ui->key->clear();
-		}
-		QString key = ui->key->text();
-		bool authenticated = !key.isEmpty();
-		int page = can_auth && (!loading || key.isEmpty())
-				   ? (int)Section::Connect
-				   : (int)Section::StreamKey;
-		if (hidden_key)
-			page = (int)Section::StreamKey;
-		ui->useStreamKey->setVisible(!hidden_key);
-		ui->streamStackWidget->setCurrentIndex(page);
-		ui->streamKeyWidget->setVisible(!hidden_key);
-		ui->streamKeyLabel->setVisible(!hidden_key);
-#if CAFFEINE_ENABLED
-		auto caffeineAuth =
-			std::dynamic_pointer_cast<CaffeineAuth>(auth);
-		ui->authSignedInAs->setVisible(authenticated && caffeineAuth);
-		ui->authSignedInAsLabel->setVisible(authenticated &&
-						    caffeineAuth);
-		if (caffeineAuth) {
-			ui->authSignedInAs->setText(
-				QT_UTF8(caffeineAuth->GetUsername().c_str()));
-		}
-#endif
-		ui->connectAccount->setVisible(can_auth && !authenticated);
-		ui->disconnectAccount->setVisible(can_auth && authenticated);
-		ui->connectAccount2->setVisible(can_auth && !authenticated);
+	if (lastService.isEmpty()) {
+		lastService = service.c_str();
+		lastServiceKey = ui->key->text();
+	} else if (lastService != service.c_str()) {
+		// Don't show the stream key from the previous service
+		ui->key->clear();
 	} else {
 		ui->key->setText(lastServiceKey);
 	}
+	QString key = ui->key->text();
+	bool authenticated = !key.isEmpty();
+	int page = can_auth && (!loading || key.isEmpty())
+			   ? (int)Section::Connect
+			   : (int)Section::StreamKey;
+	if (hidden_key)
+		page = (int)Section::StreamKey;
+	ui->useStreamKey->setVisible(!hidden_key);
+	ui->streamStackWidget->setCurrentIndex(page);
+	ui->streamKeyWidget->setVisible(!hidden_key);
+	ui->streamKeyLabel->setVisible(!hidden_key);
+#if CAFFEINE_ENABLED
+	bool isCaffeine = service == "Caffeine";
+	ui->authSignedInAs->setVisible(authenticated && isCaffeine);
+	ui->authSignedInAsLabel->setVisible(authenticated && isCaffeine);
+	ui->authSignedInAs->setText(lastSignedInAs);
+#endif
+	ui->connectAccount->setVisible(can_auth && !authenticated);
+	ui->disconnectAccount->setVisible(can_auth && authenticated);
+	ui->connectAccount2->setVisible(can_auth && !authenticated);
 #else
 	ui->connectAccount2->setVisible(false);
 #endif
@@ -458,6 +457,8 @@ void OBSBasicSettings::OnOAuthStreamKeyConnected()
 		if (validKey)
 			ui->key->setText(QT_UTF8(a->key().c_str()));
 
+		lastService = a->service();
+		lastServiceKey = a->key().c_str();
 		ui->streamKeyWidget->setVisible(false);
 		ui->streamKeyLabel->setVisible(false);
 		ui->connectAccount->setVisible(false);
@@ -467,10 +468,10 @@ void OBSBasicSettings::OnOAuthStreamKeyConnected()
 #if CAFFEINE_ENABLED
 		auto caffeine = dynamic_cast<CaffeineAuth *>(a);
 		if (caffeine) {
+			lastSignedInAs = caffeine->GetUsername().c_str();
 			ui->authSignedInAsLabel->setVisible(true);
 			ui->authSignedInAs->setVisible(true);
-			ui->authSignedInAs->setText(
-				QT_UTF8(caffeine->GetUsername().c_str()));
+			ui->authSignedInAs->setText(lastSignedInAs);
 		}
 #endif
 
