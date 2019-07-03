@@ -303,6 +303,13 @@ void OBSBasicSettings::on_service_currentIndexChanged(int)
 	ui->connectAccount2->setText(connectString);
 
 	if (lastService != service.c_str()) {
+		if (lastService.isEmpty()) {
+			lastService = service.c_str();
+			lastServiceKey = ui->key->text();
+		} else {
+			// Don't show the stream key from the previous service
+			ui->key->clear();
+		}
 		QString key = ui->key->text();
 		bool authenticated = !key.isEmpty();
 		int page = can_auth && (!loading || key.isEmpty())
@@ -328,6 +335,8 @@ void OBSBasicSettings::on_service_currentIndexChanged(int)
 		ui->connectAccount->setVisible(can_auth && !authenticated);
 		ui->disconnectAccount->setVisible(can_auth && authenticated);
 		ui->connectAccount2->setVisible(can_auth && !authenticated);
+	} else {
+		ui->key->setText(lastServiceKey);
 	}
 #else
 	ui->connectAccount2->setVisible(false);
@@ -364,8 +373,6 @@ void OBSBasicSettings::UpdateServerList()
 		LoadServices(true);
 		ui->service->showPopup();
 		return;
-	} else {
-		lastService = serviceName;
 	}
 
 	obs_properties_t *props = obs_get_service_properties("rtmp_common");

@@ -225,6 +225,7 @@ private:
 	void OnOAuthStreamKeyConnected();
 	void OnAuthConnected();
 	QString lastService;
+	QString lastServiceKey;
 private slots:
 	void UpdateServerList();
 	void UpdateKeyLink();
