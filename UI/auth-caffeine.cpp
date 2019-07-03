@@ -10,7 +10,6 @@
 
 #include "ui_CaffeineSignIn.h"
 
-
 static Auth::Def caffeineDef = {"Caffeine", Auth::Type::Custom, true};
 
 /* ------------------------------------------------------------------------- */
@@ -49,11 +48,11 @@ bool CaffeineAuth::GetChannelInfo() try {
 			break;
 		case caff_ResultRefreshTokenRequired:
 		case caff_ResultInfoIncorrect:
-			throw ErrorInfo(Str("CaffeineAuth.Unauthorized"),
-					Str("CaffeineAuth.IncorrectRefresh"));
+			throw ErrorInfo(Str("Caffeine.Auth.Unauthorized"),
+					Str("Caffeine.Auth.IncorrectRefresh"));
 		default:
-			throw ErrorInfo(Str("CaffeineAuth.Failed"),
-					Str("CaffeineAuth.SigninFailed"));
+			throw ErrorInfo(Str("Caffeine.Auth.Failed"),
+					Str("Caffeine.Auth.SigninFailed"));
 		}
 	}
 
@@ -169,39 +168,44 @@ void CaffeineAuth::TryAuth(Ui::CaffeineSignInDialog *ui, QDialog *dialog,
 		return;
 	case caff_ResultMfaOtpRequired:
 		ui->messageLabel->setText(
-			R"(Enter the authentication code that was sent to your email. <a href="https://www.caffeine.tv" style="text-decoration:none;color:#009fe0;">Resend email.</a>)");
+			QString(R"(%1 <a href="https://www.caffeine.tv" style="text-decoration:none;color:#009fe0;">%2</a>)")
+				.arg(QTStr("Caffeine.Auth.EnterCode"),
+				     QTStr("Caffeine.Auth.ResendEmail")));
 		ui->usernameEdit->hide();
 		passwordForOtp = ui->passwordEdit->text().toStdString();
 		ui->passwordEdit->clear();
-		ui->passwordEdit->setPlaceholderText("Enter code");
-		ui->signInButton->setText("Continue");
+		ui->passwordEdit->setPlaceholderText(
+			Str("Caffeine.Auth.VerificationPlaceholder"));
+		ui->signInButton->setText(Str("Caffeine.Auth.Continue"));
 		ui->newUserFooter->hide();
 		return;
 	case caff_ResultMfaOtpIncorrect:
 		ui->passwordEdit->clear();
 		ui->messageLabel->setText(
-			"The verification code was incorrect.");
+			Str("Caffeine.Auth.IncorrectVerification"));
 		return;
 	case caff_ResultUsernameRequired:
-		ui->messageLabel->setText(Str("CaffeineAuth.UsernameRequired"));
+		ui->messageLabel->setText(
+			Str("Caffeine.Auth.UsernameRequired"));
 		return;
 	case caff_ResultPasswordRequired:
-		ui->messageLabel->setText(Str("CaffeineAuth.PasswordRequired"));
+		ui->messageLabel->setText(
+			Str("Caffeine.Auth.PasswordRequired"));
 		return;
 	case caff_ResultInfoIncorrect:
-		ui->messageLabel->setText(Str("CaffeineAuth.IncorrectInfo"));
+		ui->messageLabel->setText(Str("Caffeine.Auth.IncorrectInfo"));
 		return;
 	case caff_ResultLegalAcceptanceRequired:
 		ui->messageLabel->setText(
-			Str("CaffeineAuth.TosAcceptanceRequired"));
+			Str("Caffeine.Auth.TosAcceptanceRequired"));
 		return;
 	case caff_ResultEmailVerificationRequired:
 		ui->messageLabel->setText(
-			Str("CaffeineAuth.EmailVerificationRequired"));
+			Str("Caffeine.Auth.EmailVerificationRequired"));
 		return;
 	case caff_ResultFailure:
 	default:
-		ui->messageLabel->setText(Str("CaffeineAuth.SigninFailed"));
+		ui->messageLabel->setText(Str("Caffeine.Auth.SigninFailed"));
 		return;
 	}
 }
@@ -231,19 +235,17 @@ std::shared_ptr<Auth> CaffeineAuth::Login(QWidget *parent)
 		std::make_shared<CaffeineAuth>(caffeineDef);
 
 	std::string origPassword;
-	connect(ui->signInButton, &QPushButton::clicked, [&](bool) {
-		auth->TryAuth(ui, &dialog, origPassword);
-	});
+	connect(ui->signInButton, &QPushButton::clicked,
+		[&](bool) { auth->TryAuth(ui, &dialog, origPassword); });
 
 	// Only used for One-time-password "resend email" link. resending the
 	// email is just attempting the sign-in without one-time password
 	// included
-	connect(ui->messageLabel, &QLabel::linkActivated,
-		[&](const QString &) {
-			auto username = ui->usernameEdit->text().toStdString();
-			caff_signIn(auth->instance, username.c_str(),
-				    origPassword.c_str(), nullptr);
-		});
+	connect(ui->messageLabel, &QLabel::linkActivated, [&](const QString &) {
+		auto username = ui->usernameEdit->text().toStdString();
+		caff_signIn(auth->instance, username.c_str(),
+			    origPassword.c_str(), nullptr);
+	});
 
 	if (dialog.exec() == QDialog::Rejected)
 		return nullptr;
