@@ -41,7 +41,7 @@ deploy_script:
 test: off
 
 cache:
-  - dependencies2017.zip
+  #- dependencies2017.zip
   - vlc.zip
   - 'cef_binary_%CEF_VERSION%_windows32.zip'
   - 'cef_binary_%CEF_VERSION%_windows64.zip'
