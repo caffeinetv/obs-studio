@@ -95,8 +95,8 @@ void OBSBasicSettings::LoadStream1Settings()
 				ui->service->insertItem(1, service);
 				idx = 1;
 			} else {
-				// Default to twitch or first non-custom service
-				idx = ui->service->findText("Twitch");
+				// Default to caffeine or first non-custom service
+				idx = ui->service->findText("Caffeine");
 				if (idx == -1)
 					idx = 1;
 			}

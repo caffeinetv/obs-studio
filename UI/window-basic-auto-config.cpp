@@ -662,7 +662,7 @@ void AutoConfigStreamPage::LoadServices(bool showAll)
 
 	int idx = -1;
 	if (lastService.isEmpty()) {
-		idx = ui->service->findText("Twitch");
+		idx = ui->service->findText("Caffeine");
 	} else {
 		idx = ui->service->findText(lastService);
 	}
