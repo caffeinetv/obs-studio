@@ -16,7 +16,8 @@ void CaffeineInfoPanel::registerDockWidget()
 void CaffeineInfoPanel::updateClicked(bool)
 {
 	std::string title = std::string(ui->title->text().toUtf8().data());
-	caff_Rating rating = ui->rating->itemData(ui->rating->currentIndex()).value<caff_Rating>();
+	caff_Rating rating = ui->rating->itemData(ui->rating->currentIndex())
+				     .value<caff_Rating>();
 
 	setTitle(title);
 	setRating(rating);
@@ -24,8 +25,10 @@ void CaffeineInfoPanel::updateClicked(bool)
 	obs_service_t *service = OBSBasic::Get()->GetService();
 	if (service) {
 		obs_data_t *data = obs_service_get_settings(service);
-		obs_data_set_string(data, "broadcast_title", getTitle().c_str());
-		obs_data_set_int(data, "rating", static_cast<int64_t>(getRating()));
+		obs_data_set_string(data, "broadcast_title",
+				    getTitle().c_str());
+		obs_data_set_int(data, "rating",
+				 static_cast<int64_t>(getRating()));
 		obs_service_update(service, data);
 		obs_data_release(data);
 	}
@@ -40,16 +43,21 @@ void CaffeineInfoPanel::viewOnWebClicked(bool)
 	QDesktopServices::openUrl(url);
 }
 
-CaffeineInfoPanel::CaffeineInfoPanel(CaffeineAuth* owner,
-	caff_InstanceHandle instance) : OBSDock(OBSBasic::Get()), owner(owner),
-	ui(new Ui::CaffeinePanel), caffeineInstance(instance)
+CaffeineInfoPanel::CaffeineInfoPanel(CaffeineAuth *owner,
+				     caff_InstanceHandle instance)
+	: OBSDock(OBSBasic::Get()),
+	  owner(owner),
+	  ui(new Ui::CaffeinePanel),
+	  caffeineInstance(instance)
 {
 	ui->setupUi(this);
 
 	// Set up ratings.
 	ui->rating->clear();
-	ui->rating->addItem(QTStr("Caffeine.Rating.None"), QVariant(caff_RatingNone));
-	ui->rating->addItem(QTStr("Caffeine.Rating.SeventeenPlus"), QVariant(caff_RatingSeventeenPlus));
+	ui->rating->addItem(QTStr("Caffeine.Rating.None"),
+			    QVariant(caff_RatingNone));
+	ui->rating->addItem(QTStr("Caffeine.Rating.SeventeenPlus"),
+			    QVariant(caff_RatingSeventeenPlus));
 	ui->rating->setCurrentIndex(static_cast<int>(getRating()));
 
 	// Set up title
@@ -57,8 +65,10 @@ CaffeineInfoPanel::CaffeineInfoPanel(CaffeineAuth* owner,
 	ui->title->setAttribute(Qt::WA_MacShowFocusRect, false);
 
 	// Buttons
-	connect(ui->updateButton, SIGNAL(clicked(bool)), SLOT(updateClicked(bool)));
-	connect(ui->viewOnWebBtn, SIGNAL(clicked(bool)), SLOT(viewOnWebClicked(bool)));
+	connect(ui->updateButton, SIGNAL(clicked(bool)),
+		SLOT(updateClicked(bool)));
+	connect(ui->viewOnWebBtn, SIGNAL(clicked(bool)),
+		SLOT(viewOnWebClicked(bool)));
 
 	this->registerDockWidget();
 }
@@ -72,8 +82,10 @@ CaffeineInfoPanel::~CaffeineInfoPanel()
 std::string CaffeineInfoPanel::getTitle()
 {
 	OBSBasic *main = OBSBasic::Get();
-	config_set_default_string(main->Config(), "Caffeine", "Title", tr("Caffeine.Title").toUtf8().data());
-	const char* title = config_get_string(main->Config(), "Caffeine", "Title");
+	config_set_default_string(main->Config(), "Caffeine", "Title",
+				  tr("Caffeine.Title").toUtf8().data());
+	const char *title =
+		config_get_string(main->Config(), "Caffeine", "Title");
 	if (!title) {
 		return std::string(tr("Caffeine.Title").toUtf8().data());
 	}
@@ -89,12 +101,15 @@ void CaffeineInfoPanel::setTitle(std::string title)
 caff_Rating CaffeineInfoPanel::getRating()
 {
 	OBSBasic *main = OBSBasic::Get();
-	config_set_default_int(main->Config(), "Caffeine", "Rating", caff_RatingNone);
-	return static_cast<caff_Rating>(config_get_int(main->Config(), "Caffeine", "Rating"));
+	config_set_default_int(main->Config(), "Caffeine", "Rating",
+			       caff_RatingNone);
+	return static_cast<caff_Rating>(
+		config_get_int(main->Config(), "Caffeine", "Rating"));
 }
 
 void CaffeineInfoPanel::setRating(caff_Rating rating)
 {
 	OBSBasic *main = OBSBasic::Get();
-	config_set_int(main->Config(), "Caffeine", "Rating", static_cast<int64_t>(rating));
+	config_set_int(main->Config(), "Caffeine", "Rating",
+		       static_cast<int64_t>(rating));
 }

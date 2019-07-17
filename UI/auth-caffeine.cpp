@@ -36,7 +36,8 @@ CaffeineAuth::~CaffeineAuth()
 	caff_freeInstance(&instance);
 }
 
-bool CaffeineAuth::GetChannelInfo() try {
+bool CaffeineAuth::GetChannelInfo()
+try {
 	key_ = refresh_token;
 
 	if (caff_isSignedIn(instance)) {
