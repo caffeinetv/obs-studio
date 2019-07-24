@@ -9,12 +9,6 @@ MODULE_EXPORT char const *obs_module_description(void)
 	return obs_module_text("CaffeineModule");
 }
 
-#ifdef NDEBUG
-#define LOG_LEVEL caff_LogLevelWarning
-#else
-#define LOG_LEVEL caff_LogLevelDebug
-#endif
-
 extern struct obs_output_info caffeine_output_info;
 
 /* Converts libcaffeine log levels to OBS levels */
@@ -43,8 +37,8 @@ static void caffeine_log(caff_LogLevel level, char const *message)
 bool obs_module_load(void)
 {
 	obs_register_output(&caffeine_output_info);
-	caff_Result result =
-		caff_initialize("obs", OBS_VERSION, LOG_LEVEL, caffeine_log);
+	caff_Result result = caff_initialize("obs", OBS_VERSION,
+					     caff_LogLevelDebug, caffeine_log);
 	return result == caff_ResultSuccess;
 }
 
