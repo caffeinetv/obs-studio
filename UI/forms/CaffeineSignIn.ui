@@ -266,15 +266,19 @@ QLineEdit {
 
 QPushButton {
 	font-size: 24px;
-	background-color: #009fe0;
+	background-color: black;
 	color:white;
 	border-radius: 40px;
-	border: 0px solid #009fe0;
+	border: 0px solid black;
 }
 
+
 QPushButton::hover {
-	background-color: #007cad;
+     color: black;
+	background-color: white;
+     border: 1px solid black;
 }
+
 </string>
   </property>
   <property name="modal">
@@ -477,7 +481,7 @@ QPushButton::hover {
         <string/>
        </property>
        <property name="placeholderText">
-        <string>Username</string>
+        <string>username</string>
        </property>
       </widget>
      </item>
@@ -503,7 +507,7 @@ QPushButton::hover {
         <enum>QLineEdit::Password</enum>
        </property>
        <property name="placeholderText">
-        <string>Password</string>
+        <string>password</string>
        </property>
       </widget>
      </item>
@@ -541,7 +545,7 @@ QPushButton::hover {
         <cursorShape>PointingHandCursor</cursorShape>
        </property>
        <property name="text">
-        <string>Sign In</string>
+        <string>sign in</string>
        </property>
       </widget>
      </item>
@@ -567,7 +571,7 @@ QPushButton::hover {
         <string notr="true">padding-bottom: 5px;</string>
        </property>
        <property name="text">
-        <string>&lt;p style=&quot;line-height: 75%; font-family: 'Poppins Light'; font-size: 14px;&quot;&gt;Forgot something?&lt;br/&gt;&lt;a href=&quot;https://www.caffeine.tv/forgot-password&quot; style=&quot;color: #009fe0; text-decoration: none&quot;&gt;Reset your password&lt;/a&gt;&lt;/p&gt;</string>
+        <string>&lt;p style=&quot;line-height: 75%; font-family: 'Poppins Light'; font-size: 14px;&quot;&gt;forgot something?&lt;br/&gt;&lt;a href=&quot;https://www.caffeine.tv/forgot-password&quot; style=&quot;color: #00f; text-decoration: none&quot;&gt;reset your password&lt;/a&gt;&lt;/p&gt;</string>
        </property>
        <property name="alignment">
         <set>Qt::AlignCenter</set>
@@ -610,10 +614,10 @@ QPushButton::hover {
       </size>
      </property>
      <property name="styleSheet">
-      <string notr="true">background-color: #009fe0; color: white; padding: 18px 0px 16px 0px;</string>
+      <string notr="true">background-color: #0000FF; color: white; padding: 18px 0px 16px 0px;</string>
      </property>
      <property name="text">
-      <string>New to Caffeine? &lt;a href=&quot;https://www.caffeine.tv/sign-up&quot; style=&quot;color: white; text-decoration: none; font-weight: bold&quot;&gt;Sign up&lt;/a&gt;</string>
+      <string>New to Caffeine? &lt;a href=&quot;https://www.caffeine.tv/sign-up&quot; style=&quot;color: white; text-decoration: none; font-weight: bold&quot;&gt;sign up&lt;/a&gt;</string>
      </property>
      <property name="alignment">
       <set>Qt::AlignCenter</set>
