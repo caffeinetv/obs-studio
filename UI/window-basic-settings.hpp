@@ -27,6 +27,7 @@
 #include <libff/ff-util.h>
 
 #include <obs.hpp>
+#include "ui-config.h"
 
 #include "auth-base.hpp"
 
@@ -235,6 +236,10 @@ private:
 	void OnAuthConnected();
 	QString lastService;
 	int prevLangIndex;
+	QString lastServiceKey;
+#if CAFFEINE_ENABLED
+	QString lastSignedInAs;
+#endif
 private slots:
 	void UpdateServerList();
 	void UpdateKeyLink();
