@@ -358,7 +358,7 @@ function(install_obs_pdb ttype target)
 	if("${ttype}" STREQUAL "PLUGIN")
 		obs_debug_copy_helper(${target} "${OBS_OUTPUT_DIR}/$<CONFIGURATION>/obs-plugins/${_bit_suffix}")
 
-		if(DEFINED ${obsInstallerTempDir})
+		if(DEFINED ENV{obsInstallerTempDir})
 			obs_debug_copy_helper(${target} "${obsInstallerTempDir}/${OBS_PLUGIN_DESTINATION}")
 		endif()
 
@@ -368,7 +368,7 @@ function(install_obs_pdb ttype target)
 	else()
 		obs_debug_copy_helper(${target} "${OBS_OUTPUT_DIR}/$<CONFIGURATION>/bin/${_bit_suffix}")
 
-		if(DEFINED ${obsInstallerTempDir})
+		if(DEFINED ENV{obsInstallerTempDir})
 			obs_debug_copy_helper(${target} "${obsInstallerTempDir}/${OBS_EXECUTABLE_DESTINATION}")
 		endif()
 
@@ -401,7 +401,7 @@ function(install_obs_core target)
 			"${OBS_OUTPUT_DIR}/$<CONFIGURATION>/bin/${_bit_suffix}$<TARGET_FILE_NAME:${target}>"
 		VERBATIM)
 
-	if(DEFINED ${obsInstallerTempDir})
+	if(DEFINED ENV{obsInstallerTempDir})
 		get_property(target_type TARGET ${target} PROPERTY TYPE)
 		if("${target_type}" STREQUAL "EXECUTABLE")
 			set(tmp_target_dir "${OBS_EXECUTABLE_DESTINATION}")
@@ -516,7 +516,7 @@ function(install_obs_data_file target datafile datadest)
 			"${CMAKE_CURRENT_SOURCE_DIR}/${datafile}" "${OBS_OUTPUT_DIR}/$<CONFIGURATION>/data/${datadest}"
 		VERBATIM)
 
-	if(CMAKE_SIZEOF_VOID_P EQUAL 8 AND DEFINED ${obsInstallerTempDir})
+	if(CMAKE_SIZEOF_VOID_P EQUAL 8 AND DEFINED ENV{obsInstallerTempDir})
 		add_custom_command(TARGET ${target} POST_BUILD
 			COMMAND "${CMAKE_COMMAND}" -E make_directory
 				"${obsInstallerTempDir}/${OBS_DATA_DESTINATION}/${datadest}"
@@ -538,7 +538,7 @@ function(install_obs_datatarget target datadest)
 			"${OBS_OUTPUT_DIR}/$<CONFIGURATION>/data/${datadest}/$<TARGET_FILE_NAME:${target}>"
 		VERBATIM)
 
-	if(DEFINED ${obsInstallerTempDir})
+	if(DEFINED ENV{obsInstallerTempDir})
 		add_custom_command(TARGET ${target} POST_BUILD
 			COMMAND "${CMAKE_COMMAND}" -E copy
 				"$<TARGET_FILE:${target}>"
