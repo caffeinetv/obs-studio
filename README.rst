@@ -42,6 +42,20 @@ Quick Links
    (Note: The bug tracker is linked to forum accounts.  To use the bug
    tracker, log in to a forum account)
 
+Building the script
+-------------------
+
+  After installing the prerequisites run the automated build script: ``build.bat -[OPTION]``   
+
+  .. csv-table:: 
+   :header: "Option", "Usage"
+   :widths: 20, 80
+
+   "*-help*", "To display the supported options."
+   "*-check*", "To verify project prerequisites are set."
+   "*-build*", "To build 64 bit version of obs-studio."
+   "-*cmbuild*", "To build cmbuild."
+  
 Contributing
 ------------
 

@@ -49,10 +49,10 @@ goto :MAIN
 :: @function to print the supported options 
 :-help 
     echo Supported options are:
-    echo -help : Print this output
+    echo -help : Print this output.
     echo -check : Checks environment variables/ dependencies for this project.
-    echo -build : Builds 64 bit version of obs 
-    echo -cmbuild : Runs cmbuild
+    echo -build : Builds 64 bit version of obs. 
+    echo -cmbuild : Runs cmbuild.
     goto:EOF
 
 
