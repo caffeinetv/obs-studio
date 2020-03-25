@@ -42,10 +42,10 @@ Quick Links
    (Note: The bug tracker is linked to forum accounts.  To use the bug
    tracker, log in to a forum account)
 
-Building the script
--------------------
+Running the automated build script to create .sln file
+------------------------------------------------------
 
-  After installing the prerequisites run the automated build script: ``build.bat -[OPTION]``   
+  After installing the prerequisites run the automated build script: ``build.bat [OPTION]``   
 
   .. csv-table:: 
    :header: "Option", "Usage"
