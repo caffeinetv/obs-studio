@@ -42,10 +42,22 @@ Quick Links
    (Note: The bug tracker is linked to forum accounts.  To use the bug
    tracker, log in to a forum account)
 
-Running the automated build script to create .sln file
-------------------------------------------------------
+Running the automated build script to create .sln file for Windows
+------------------------------------------------------------------
 
-  After installing the prerequisites run the automated build script: ``build.bat [OPTION]``   
+  After installing the `prerequisites <https://github.com/obsproject/obs-studio/wiki/Install-Instructions>`_ .Create the following environment variables:
+
+  #. **QTDIR** - Path pointing Qt 5.14.1 msvc2017_64 folder
+
+  #. **obsInstallerTempDir** - Empty directory path
+
+  #. **DepsPath** - Path to pre-built windows dependencies win64/include
+
+  #. **LIBCAFFEINE_DIR** - Path to `prebuilt libcaffeine <https://github.com/caffeinetv/libcaffeine/releases>`_  folder
+
+  #. **CEF_ROOT_DIR** - Path to the embedded chrome browser library downloaded from `here <http://opensource.spotify.com/cefbuilds/index.html>`_ Following version 08/29/2018 - CEF 3.3440.1806.g65046b7 / Chromium 68.0.3440.106
+
+  Run the automated build script: ``build.bat [OPTION]``   
 
   .. csv-table:: 
    :header: "Option", "Usage"
