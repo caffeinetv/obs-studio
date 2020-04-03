@@ -43,7 +43,6 @@ goto :MAIN
 :: @function to cmbuild COBS
 :-cmbuild
     call :-check 
-    echo %errorlevel%
     if ERRORLEVEL 1 goto:EOF
     call :clean cmbuild
     echo Configuring and generating cmbuild...
