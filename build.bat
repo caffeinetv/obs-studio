@@ -1,5 +1,9 @@
 @echo off
 
+setlocal
+set ERRORLEVEL=0
+endlocal
+
 goto :MAIN
 
 :: @function to check environment variables/dependencies for this project
@@ -9,7 +13,7 @@ goto :MAIN
     if not defined obsInstallerTempDir goto :error 
     if not defined DepsPath goto :error 
     if not defined LIBCAFFEINE_DIR goto :error 
-    if not defined CEF_ROOT_DIR goto :error 
+    if not defined CEF_ROOT_DIR goto :error
     echo Successfully found all the dependencies.
     goto:EOF
 
@@ -26,7 +30,8 @@ goto :MAIN
 
 :: @function to build 64 bit version of COBS
 :-build 
-    call :-check || goto :error 
+    call :-check
+    if ERRORLEVEL 1 goto:EOF
     call :clean build64
     echo Building 64 bit version 
     cmake -H. -Bbuild64 -G "Visual Studio 16 2019" -A"x64" -T"host=x64" -DCOPIED_DEPENDENCIES=OFF -DENABLE_SCRIPTING=ON -DENABLE_UI=ON -DCOMPILE_D3D12_HOOK=ON -DDepsPath="%DepsPath%" -DQTDIR="%QTDIR%" -DLIBCAFFEINE_DIR="%LIBCAFFEINE_DIR%" -DCEF_ROOT_DIR="%CEF_ROOT_DIR%" -DBUILD_BROWSER=ON 
@@ -37,7 +42,9 @@ goto :MAIN
 
 :: @function to cmbuild COBS
 :-cmbuild
-    call :-check || goto :error
+    call :-check 
+    echo %errorlevel%
+    if ERRORLEVEL 1 goto:EOF
     call :clean cmbuild
     echo Configuring and generating cmbuild...
     cmake -H. -Bcmbuild -G "Visual Studio 16 2019" -A"x64" -T"host=x64" -DINSTALLER_RUN=ON -DCMAKE_INSTALL_PREFIX=%obsInstallerTempDir%
@@ -59,6 +66,7 @@ goto :MAIN
 :: @function for error handling
 :error
     echo Error missing dependencies.Check if environment variables are set for QTDIR, obsInstallerTempDir, DepsPath, LIBCAFFEINE_DIR or CEF_ROOT_DIR.
+    EXIT /b 1
     goto:EOF
 
 
