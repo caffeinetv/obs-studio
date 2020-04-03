@@ -40,8 +40,8 @@ goto :MAIN
     goto:EOF
 
 
-:: @function to cmbuild COBS
-:-cmbuild
+:: @function to create package COBS
+:-package
     call :-check 
     if ERRORLEVEL 1 goto:EOF
     call :clean cmbuild
@@ -58,7 +58,7 @@ goto :MAIN
     echo -help : Print this output.
     echo -check : Checks environment variables/ dependencies for this project.
     echo -build : Builds 64 bit version of obs. 
-    echo -cmbuild : Runs cmbuild.
+    echo -package : Builds package.
     goto:EOF
 
 

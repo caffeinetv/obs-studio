@@ -84,7 +84,7 @@ Building from source
    "*-help*", "To display the supported options."
    "*-check*", "To verify project prerequisites are set."
    "*-build*", "To build 64 bit version of obs-studio."
-   "-*cmbuild*", "To build cmbuild."
+   "*-package*", "To build package."
   
 
 **Mac:**
