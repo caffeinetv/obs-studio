@@ -4,6 +4,7 @@
 #include "ui_CaffeinePanel.h"
 
 #include <QDesktopServices>
+#include <stdlib.h>
 
 void CaffeineInfoPanel::registerDockWidget()
 {
@@ -37,7 +38,9 @@ void CaffeineInfoPanel::updateClicked(bool)
 void CaffeineInfoPanel::viewOnWebClicked(bool)
 {
 	QUrl url;
-	url.setHost("caffeine.tv");
+	// Get the Caffeine URL staging or the primary 
+	const char* getCaffeineURL = getenv("CAFFEINE_DOMAIN") != NULL ?  "www.staging.caffeine.tv" : "caffeine.tv";
+	url.setHost(getCaffeineURL);
 	url.setPath(QString::fromStdString("/" + owner->GetUsername()));
 	url.setScheme("https");
 	QDesktopServices::openUrl(url);
@@ -63,7 +66,7 @@ CaffeineInfoPanel::CaffeineInfoPanel(CaffeineAuth *owner,
 	// Set up title
 	ui->title->setText(QString::fromStdString(getTitle()));
 	ui->title->setAttribute(Qt::WA_MacShowFocusRect, false);
-
+		
 	// Buttons
 	connect(ui->updateButton, SIGNAL(clicked(bool)),
 		SLOT(updateClicked(bool)));

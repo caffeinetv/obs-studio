@@ -3,6 +3,8 @@
 #include <QFontDatabase>
 #include <QMessageBox>
 
+#include <stdlib.h> 
+
 #include "window-basic-main.hpp"
 #include "window-caffeine.hpp"
 
@@ -11,6 +13,8 @@
 #include "ui_CaffeineSignIn.h"
 
 static Auth::Def caffeineDef = {"Caffeine", Auth::Type::Custom, true};
+// Get the Caffeine URL - if staging env variable is set
+static const char* getCaffeineURL = getenv("CAFFEINE_DOMAIN") != NULL ? "www.staging.caffeine.tv" : "caffeine.tv";
 
 /* ------------------------------------------------------------------------- */
 
@@ -169,8 +173,9 @@ void CaffeineAuth::TryAuth(Ui::CaffeineSignInDialog *ui, QDialog *dialog,
 		return;
 	case caff_ResultMfaOtpRequired:
 		ui->messageLabel->setText(
-			QString(R"(%1 <a href="https://www.caffeine.tv" style="text-decoration:none;color:#009fe0;">%2</a>)")
+			QString(R"(%1 <a href="https://%2" style="text-decoration:none;color:#009fe0;">%3</a>)")
 				.arg(QTStr("Caffeine.Auth.EnterCode"),
+				     getCaffeineURL,
 				     QTStr("Caffeine.Auth.ResendEmail")));
 		ui->usernameEdit->hide();
 		passwordForOtp = ui->passwordEdit->text().toStdString();
@@ -225,6 +230,10 @@ std::shared_ptr<Auth> CaffeineAuth::Login(QWidget *parent)
 	QIcon icon(":/caffeine/images/CaffeineLogo.svg");
 	ui->logo->setPixmap(icon.pixmap(76, 66));
 
+    // Set up text
+    ui->label_4->setText(QString(R"(<p style="line-height: 75%; font-family: 'Poppins Light'; font-size: 14px;">forgot something?<br/><a href="https://%1/forgot-password" style="color: rgb(0, 159, 224); text-decoration: none">reset your password</a></p>)").arg(getCaffeineURL));
+	ui->newUserFooter->setText(QString(R"(New to Caffeine? <a href="https://%1/sign-up" style="color: white; text-decoration: none; font-weight: bold">sign up</a>)").arg(getCaffeineURL));
+	
 	// Don't highlight text boxes
 	for (auto edit : dialog.findChildren<QLineEdit *>()) {
 		edit->setAttribute(Qt::WA_MacShowFocusRect, false);
