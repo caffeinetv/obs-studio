@@ -38,9 +38,9 @@ void CaffeineInfoPanel::updateClicked(bool)
 void CaffeineInfoPanel::viewOnWebClicked(bool)
 {
 	QUrl url;
-	// Get the Caffeine URL staging or the primary 
-	const char* getCaffeineURL = getenv("CAFFEINE_DOMAIN") != NULL ?  "www.staging.caffeine.tv" : "caffeine.tv";
-	url.setHost(getCaffeineURL);
+	// Set the Caffeine URL default or staging 
+	const char* host = getenv("LIBCAFFEINE_DOMAIN") == NULL ?  "caffeine.tv" : "www.staging.caffeine.tv";
+	url.setHost(host);
 	url.setPath(QString::fromStdString("/" + owner->GetUsername()));
 	url.setScheme("https");
 	QDesktopServices::openUrl(url);
