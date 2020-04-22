@@ -7,6 +7,7 @@
 #include "window-basic-main.hpp"
 #include "qt-wrappers.hpp"
 #include "obs-app.hpp"
+#include "ui-config.h"
 #include "url-push-button.hpp"
 
 #include "ui_AutoConfigStartPage.h"
@@ -445,8 +446,10 @@ void AutoConfigStreamPage::on_disconnectAccount_clicked()
 
 	OBSBasic *main = OBSBasic::Get();
 
+#if !CAFFEINE_ENABLED
 	main->auth.reset();
 	auth.reset();
+#endif
 
 	std::string service = QT_TO_UTF8(ui->service->currentText());
 

@@ -3550,9 +3550,17 @@ bool OBSBasicSettings::QueryChanges()
 	if (button == QMessageBox::Cancel) {
 		return false;
 	} else if (button == QMessageBox::Yes) {
+		// If Caffeine account was linked and disconnected reset the auth here.
+#if CAFFEINE_ENABLED
+		if (ui->connectAccount2->isVisible())
+		{
+			main->auth.reset();
+			auth.reset();
+		}
+#endif
 		SaveSettings();
 	} else {
-		LoadSettings(true);
+		LoadSettings(true);		
 #ifdef _WIN32
 		if (toggleAero)
 			SetAeroEnabled(!aeroWasDisabled);

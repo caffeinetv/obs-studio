@@ -75,8 +75,8 @@ CaffeineInfoPanel::CaffeineInfoPanel(CaffeineAuth *owner,
 
 CaffeineInfoPanel::~CaffeineInfoPanel()
 {
-	// TODO: Remove the Panel from OBS again?
-	OBSBasic::Get()->removeDockWidget(this);
+	// Remove the Panel from OBS 
+	OBSBasic::Get()->RemoveCaffeineDockWidget(this);
 }
 
 std::string CaffeineInfoPanel::getTitle()
