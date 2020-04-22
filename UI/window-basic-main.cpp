@@ -7543,8 +7543,9 @@ QAction *OBSBasic::AddDockWidget(QDockWidget *dock)
 {
 	QAction *action = ui->viewMenuDocks->addAction(dock->windowTitle());
 	action->setCheckable(true);
-	if(dock->isVisible())
+	if(dock->isVisible()) {
 		action->setChecked(true);
+	}	
 	assignDockToggle(dock, action);
 	extraDocks.push_back(dock);
 
