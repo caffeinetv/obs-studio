@@ -179,6 +179,17 @@ void CaffeineAuth::TryAuth(Ui::CaffeineSignInDialog *ui, QDialog *dialog,
 			Str("Caffeine.Auth.VerificationPlaceholder"));
 		ui->signInButton->setText(Str("Caffeine.Auth.Continue"));
 		ui->newUserFooter->hide();
+		// Disable the signInButton upfront 
+		ui->signInButton->setEnabled(false);
+		// Enable the signInButton when user has entered 6 digit opt
+		connect(ui->passwordEdit, &QLineEdit::textChanged, [=](const QString &enteredOtp) {
+			if (enteredOtp.length() == 6) {
+				ui->signInButton->setEnabled(true);
+			}
+			else {
+				ui->signInButton->setEnabled(false);
+			}			
+		});
 		return;
 	case caff_ResultMfaOtpIncorrect:
 		ui->passwordEdit->clear();
@@ -221,7 +232,6 @@ std::shared_ptr<Auth> CaffeineAuth::Login(QWidget *parent)
 	QDialog dialog(parent, flags);
 	auto ui = new Ui::CaffeineSignInDialog;
 	ui->setupUi(&dialog);
-	// For some reason the SVG appears in the designer but not in the dialog
 	QIcon icon(":/caffeine/images/CaffeineLogo.svg");
 	ui->logo->setPixmap(icon.pixmap(76, 66));
 
