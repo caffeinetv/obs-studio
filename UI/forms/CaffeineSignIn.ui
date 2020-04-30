@@ -299,6 +299,17 @@ QPushButton {
 	border: 0px solid black;
 }
 
+QPushButton::disabled {
+    color: white;
+    background-color: rgb(160, 160, 160);
+}
+
+QPushButton::focus {
+    border-radius: 40px;
+    border: 1px solid black;
+    outline: 0px solid black;
+}
+
 QPushButton::hover {
 	color: white;
 	background-color: rgb(0, 0, 0);

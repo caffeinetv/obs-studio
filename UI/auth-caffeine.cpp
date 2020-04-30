@@ -11,7 +11,7 @@
 #include "ui_CaffeineSignIn.h"
 
 static Auth::Def caffeineDef = {"Caffeine", Auth::Type::Custom, true};
-
+const int otpLength = 6;
 /* ------------------------------------------------------------------------- */
 
 static int addFonts()
@@ -181,9 +181,10 @@ void CaffeineAuth::TryAuth(Ui::CaffeineSignInDialog *ui, QDialog *dialog,
 		ui->newUserFooter->hide();
 		// Disable the signInButton upfront 
 		ui->signInButton->setEnabled(false);
+		ui->passwordEdit->setMaxLength(otpLength);
 		// Enable the signInButton when user has entered 6 digit opt
 		connect(ui->passwordEdit, &QLineEdit::textChanged, [=](const QString &enteredOtp) {
-			if (enteredOtp.length() == 6) {
+			if (enteredOtp.length() == otpLength) {
 				ui->signInButton->setEnabled(true);
 			}
 			else {
