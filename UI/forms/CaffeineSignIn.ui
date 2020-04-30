@@ -300,8 +300,8 @@ QPushButton {
 }
 
 QPushButton::disabled {
-    color: white;
-    background-color: rgb(160, 160, 160);
+    color: rgb(116, 116, 116);
+    background-color: rgb(231, 231, 239);
 }
 
 QPushButton::focus {
