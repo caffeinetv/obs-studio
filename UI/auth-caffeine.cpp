@@ -3,6 +3,8 @@
 #include <QFontDatabase>
 #include <QMessageBox>
 
+#include <stdlib.h> 
+
 #include "window-basic-main.hpp"
 #include "window-caffeine.hpp"
 
@@ -12,6 +14,9 @@
 
 static Auth::Def caffeineDef = {"Caffeine", Auth::Type::Custom, true};
 const int otpLength = 6;
+// Get the Caffeine URL default or staging
+static const char* getCaffeineURL = getenv("LIBCAFFEINE_DOMAIN") == NULL ? "caffeine.tv" : getenv("LIBCAFFEINE_DOMAIN");
+
 /* ------------------------------------------------------------------------- */
 
 static int addFonts()
@@ -169,9 +174,9 @@ void CaffeineAuth::TryAuth(Ui::CaffeineSignInDialog *ui, QDialog *dialog,
 		return;
 	case caff_ResultMfaOtpRequired:
 		ui->messageLabel->setText(
-			QString(R"(%1 <a href="https://www.caffeine.tv" style="text-decoration:none;color:#009fe0;">%2</a>)")
+			QString(R"(%1 <a href="https://www.%2" style="text-decoration:none;color:#009fe0;"></a>)")
 				.arg(QTStr("Caffeine.Auth.EnterCode"),
-				     QTStr("Caffeine.Auth.ResendEmail")));
+				     getCaffeineURL));
 		ui->usernameEdit->hide();
 		passwordForOtp = ui->passwordEdit->text().toStdString();
 		ui->passwordEdit->clear();
@@ -179,6 +184,14 @@ void CaffeineAuth::TryAuth(Ui::CaffeineSignInDialog *ui, QDialog *dialog,
 			Str("Caffeine.Auth.VerificationPlaceholder"));
 		ui->signInButton->setText(Str("Caffeine.Auth.Continue"));
 		ui->newUserFooter->hide();
+		ui->forgotPasswordLabel->setOpenExternalLinks(false);
+		ui->forgotPasswordLabel->setText(QString(R"(<p>
+			%1 <br/><a href="https://www.%2" style="color: rgb(0, 159, 224); 
+			text-decoration: none">%3</a></p>)")
+				.arg(QTStr("Caffeine.Auth.HavingProblems"), 
+					 getCaffeineURL, 
+				   	 QTStr("Caffeine.Auth.SendNewCode")));
+		
 		// Disable the signInButton upfront 
 		ui->signInButton->setEnabled(false);
 		ui->passwordEdit->setMaxLength(otpLength);
@@ -236,6 +249,13 @@ std::shared_ptr<Auth> CaffeineAuth::Login(QWidget *parent)
 	QIcon icon(":/caffeine/images/CaffeineLogo.svg");
 	ui->logo->setPixmap(icon.pixmap(76, 66));
 
+    // Set up text and point href depending on the env var
+    ui->forgotPasswordLabel->setText(QString(R"(<p>
+		forgot something?<br/><a href="https://www.%1/forgot-password" style="color: rgb(0, 159, 224); 
+		text-decoration: none">reset your password</a></p>)").arg(getCaffeineURL));
+	ui->newUserFooter->setText(QString(R"(New to Caffeine? <a href="https://www.%1/sign-up" style="color: white; 
+		text-decoration: none; font-weight: bold">sign up</a>)").arg(getCaffeineURL));
+	
 	// Don't highlight text boxes
 	for (auto edit : dialog.findChildren<QLineEdit *>()) {
 		edit->setAttribute(Qt::WA_MacShowFocusRect, false);
@@ -253,10 +273,13 @@ std::shared_ptr<Auth> CaffeineAuth::Login(QWidget *parent)
 	// Only used for One-time-password "resend email" link. resending the
 	// email is just attempting the sign-in without one-time password
 	// included
-	connect(ui->messageLabel, &QLabel::linkActivated, [&](const QString &) {
-		auto username = ui->usernameEdit->text().toStdString();
-		caff_signIn(auth->instance, username.c_str(),
-			    origPassword.c_str(), nullptr);
+	connect(ui->forgotPasswordLabel, &QLabel::linkActivated, [&](const QString &) {
+		// Do this only for OTP
+		if (!ui->newUserFooter->isVisible()) {
+			auto username = ui->usernameEdit->text().toStdString();
+			caff_signIn(auth->instance, username.c_str(),
+					origPassword.c_str(), nullptr);
+		}
 	});
 
 	if (dialog.exec() == QDialog::Rejected)

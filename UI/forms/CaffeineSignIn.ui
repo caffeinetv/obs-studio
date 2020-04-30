@@ -316,6 +316,11 @@ QPushButton::hover {
 	border: 1px solid black;
 }
 
+QLabel#forgotPasswordLabel {
+    line-height: 75%;
+    font-family: 'Poppins Light'; 
+    font-size: 14px;
+}
 </string>
   </property>
   <property name="modal">
@@ -603,12 +608,9 @@ QPushButton::hover {
       </spacer>
      </item>
      <item>
-      <widget class="QLabel" name="label_4">
+      <widget class="QLabel" name="forgotPasswordLabel">
        <property name="styleSheet">
         <string notr="true">padding-bottom: 5px;</string>
-       </property>
-       <property name="text">
-        <string>&lt;p style=&quot;line-height: 75%; font-family: 'Poppins Light'; font-size: 14px;&quot;&gt;forgot something?&lt;br/&gt;&lt;a href=&quot;https://www.caffeine.tv/forgot-password&quot; style=&quot;color: rgb(0, 159, 224); text-decoration: none&quot;&gt;reset your password&lt;/a&gt;&lt;/p&gt;</string>
        </property>
        <property name="alignment">
         <set>Qt::AlignCenter</set>
@@ -652,9 +654,6 @@ QPushButton::hover {
      </property>
      <property name="styleSheet">
       <string notr="true">background-color: rgb(0, 159, 224); color: white; padding: 18px 0px 16px 0px;</string>
-     </property>
-     <property name="text">
-      <string>New to Caffeine? &lt;a href=&quot;https://www.caffeine.tv/sign-up&quot; style=&quot;color: white; text-decoration: none; font-weight: bold&quot;&gt;sign up&lt;/a&gt;</string>
      </property>
      <property name="alignment">
       <set>Qt::AlignCenter</set>
