@@ -48,7 +48,7 @@ Building from source
  Clone the repository and submodules
   .. code-block:: text
 
-      git clone --recursive https://github.com/obsproject/obs-studio.git
+      git clone --recursive https://github.com/caffeinetv/obs-studio.git
 
 **Windows:**
 
@@ -75,7 +75,11 @@ Building from source
 
   #. **CEF_ROOT_DIR** - Path to the embedded chrome browser library 
 
-  Run the automated build script: ``build.bat [OPTION]``   
+  Run the automated build script:     
+
+  ``cd COBS-scripts``       
+
+  ``build.bat [OPTION]``      
 
   .. csv-table:: 
    :header: "Option", "Usage"
@@ -85,6 +89,8 @@ Building from source
    "*-check*", "To verify project prerequisites are set."
    "*-build*", "To build 64 bit version of obs-studio."
    "*-package*", "To build package."
+   "*-sign*", "To sign the package."  
+
   
 
 **Mac:**
@@ -105,6 +111,18 @@ Building from source
       brew tap homebrew-ffmpeg/ffmpeg
 
       brew install homebrew-ffmpeg/ffmpeg/ffmpeg --with-srt
+  
+  2. Install  x264, mbedtls, qt and swig
+  
+     .. code-block:: text
+
+      brew install x264
+
+      brew install mbedtls
+
+      brew install qt
+
+      brew install swig
 
   2. Set environment variable for Qt
 
@@ -128,7 +146,7 @@ Building from source
 
       cd build 
 
-      cmake .. & make
+      cmake .. && make
 
   5. After it built successfully then run the app 
      
