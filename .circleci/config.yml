@@ -1,0 +1,490 @@
+version: 2.1
+
+machine:
+  timezone: America/Los_Angeles
+
+orbs:
+  win: circleci/windows@2.4.0
+
+working_directory: &working_directory ~/repo
+
+PR_branches_only: &PR_branches_only
+  filters:
+    branches:
+      ignore:
+        - master
+
+defaults: &defaults
+  working_directory: *working_directory
+  environment:
+    LANG: en_US.UTF-8
+    HOMEBREW_NO_AUTO_UPDATE: 1
+    CEF_BUILD_VERSION: 3770
+    CEF_VERSION: 75.1.16+g16a67c4+chromium-75.0.3770.100
+    VLC_VERSION: '3.0.8'
+    SPARKLE_VERSION: '1.23.0'
+    QT_VERSION: '5.14.1'
+    LIBCAFFEINE: '0.6.1'
+    CEF_ROOT_DIR: './cef_binary_${CEF_VERSION}_macosx64'
+
+commands:
+  pull_submodules:
+    steps:
+      - run:
+          name: Pulling submodules
+          command: |
+              git submodule update --init --recursive
+  brew_installs: 
+    steps:
+      - run:
+          name: Install brew prerequisite 
+          command: |
+              brew tap homebrew-ffmpeg/ffmpeg
+              brew install cmake
+              brew install homebrew-ffmpeg/ffmpeg/ffmpeg --with-srt 
+              brew install x264
+              brew install luajit
+              
+              brew install p7zip
+              git fetch origin --tags
+              echo "Base OBS Deps and ccache"
+              brew install jack speexdsp ccache mbedtls freetype fdk-aac
+              brew install https://gist.githubusercontent.com/DDRBoxman/9c7a2b08933166f4b61ed9a44b242609/raw/ef4de6c587c6bd7f50210eccd5bd51ff08e6de13/qt.rb
+              brew install https://gist.githubusercontent.com/DDRBoxman/4cada55c51803a2f963fa40ce55c9d3e/raw/572c67e908bfbc1bcb8c476ea77ea3935133f5b5/swig.rb
+
+              export PATH=/usr/local/opt/ccache/libexec:$PATH
+              ccache -s || echo "CCache is not available."
+              pip3 install dmgbuild
+  install_py36:
+    steps:
+      - run:
+          name: Install Python 3.6.8
+          command: |
+            cd ~/repo
+            cd ../
+            curl -L -O https://www.python.org/ftp/python/3.6.8/python-3.6.8-macosx10.6.pkg
+            sudo installer -pkg python-3.6.8-macosx10.6.pkg -target /
+            python3 --version
+            export PATH="/Library/Frameworks/Python.framework/Versions/3.6/bin:${PATH}"
+            pip3 install opencv-python-headless
+            pip3 install dmgbuild
+  install_prebuilt_deps:
+    steps:
+      - run:
+          name: Fetch prebuilt OBS deps that are compatible with older versions of OSX
+          command: |
+              cd ~/repo
+              cd ../
+              if [ -f "/Users/distiller/osx-deps-2020-04-24.tar.gz" ]
+              then
+                echo "OSB deps exists skipping download."
+              else
+                echo "Downloading OBS deps"
+                curl -L -O https://github.com/obsproject/obs-deps/releases/download/2020-04-24/osx-deps-2020-04-24.tar.gz               
+              fi
+              tar -xf ./osx-deps-2020-04-24.tar.gz -C /tmp
+
+  install_vlc:
+    steps:
+      - run:
+          name: Install vlc.
+          command: |
+              cd ~/repo
+              cd ../
+              echo "Fetch vlc codebase"
+              if [ -f "/Users/distiller/vlc-3.0.8.tar.xz" ]
+              then
+                echo "vlc codebase already exits skipping download"
+              else
+                echo "Downloading VLC repo"
+                curl -L -O https://downloads.videolan.org/vlc/3.0.8/vlc-3.0.8.tar.xz
+              fi
+              tar -xf vlc-3.0.8.tar.xz
+  install_sparkle:
+    steps:
+      - run:
+          name: Installing Sparkle
+          command: |
+              cd ~/repo
+              cd ../
+              echo "Get sparkle"
+              if [ -f "/Users/distiller/sparkle.tar.bz2" ]
+              then
+                echo "Sparkle already exists skipping installation"
+              else
+                echo "Downloading Sparkle framework"
+                curl -L -o sparkle.tar.bz2 https://github.com/sparkle-project/Sparkle/releases/download/1.23.0/Sparkle-1.23.0.tar.bz2
+              fi
+              mkdir ./sparkle
+              tar -xf ./sparkle.tar.bz2 -C ./sparkle
+              sudo cp -R ./sparkle/Sparkle.framework /Library/Frameworks/Sparkle.framework
+  install_cef:
+    steps:
+      - run: 
+          name: Installing Chromium Embedded Framework
+          command: |
+              cd ~/repo
+              cd ../
+              if [ -d "/Users/distiller/cef_binary_3770_macosx64" ]
+              then
+                echo "CEF already exists skipping downloading step."
+              else
+                curl -L -O https://obs-nightly.s3-us-west-2.amazonaws.com/cef_binary_3770_macosx64.tar.bz2
+                tar -xf ./cef_binary_3770_macosx64.tar.bz2
+                cd ./cef_binary_3770_macosx64
+                mkdir build
+                cd ./build
+                cmake -DCMAKE_CXX_FLAGS="-std=c++11 -stdlib=libc++" -DCMAKE_EXE_LINKER_FLAGS="-std=c++11 -stdlib=libc++" -DCMAKE_OSX_DEPLOYMENT_TARGET=10.11 ..
+                make -j4
+                cd ../../
+              fi
+  install_libcaffeine:
+    steps:
+      - run:
+          name: Installing Libcaffeine.
+          command: |
+              cd ~/repo
+              cd ../
+              echo "Get Libcaffeine"
+              if [ -f "/Users/distiller/libcaffeine-v0.6.1-macos.7z" ] 
+              then
+                echo "Libcaffeine already exists skipping install."
+              else
+                curl -L -O "https://github.com/caffeinetv/libcaffeine/releases/download/v0.6.1/libcaffeine-v0.6.1-macos.7z"
+              fi
+              7za x libcaffeine-v0.6.1-macos.7z
+  configure_macos64:
+    steps:
+      - run:
+          name: Configure COBS
+          command: | 
+            cd ~/repo
+            mkdir build
+            cd build
+            cmake -DENABLE_SCRIPTING=OFF -DENABLE_UI=ON -DBUILD_BROWSER=ON -DLIBCAFFEINE_DIR="/Users/distiller/libcaffeine-v0.6.1-macos" -DQTDIR="/usr/local/Cellar/qt/5.14.1" -DCEF_ROOT_DIR="/Users/distiller/cef_binary_3770_macosx64" .. 
+  build_macos64:
+    steps:
+      - run:
+          name: Building COBS.
+          command: |
+              cd ~/repo
+              cd build
+              python3 --version
+              make -j4
+              cd ..
+  before_deploy_osx: 
+    steps:
+      - run:
+          name: Before Deploy Step
+          command: |
+              cd ~/repo
+              cd CI
+              export GIT_TAG=$(git describe --abbrev=0)
+              export GIT_HASH=$(git rev-parse --short HEAD)
+              export FILE_DATE=$(date +%Y-%m-%d.%H-%M-%S)
+              export BUILD_NUM=$($CIRCLE_BUILD_NUM)
+              
+              echo "git tag: $GIT_TAG"
+              cd ../build
+
+              echo "Moving OBS LUA"
+              echo "mv ./rundir/RelWithDebInfo/data/obs-scripting/obslua.so ./rundir/RelWithDebInfo/bin/"
+
+              echo "Moving OBS Python"
+              echo "mv ./rundir/RelWithDebInfo/data/obs-scripting/_obspython.so ./rundir/RelWithDebInfo/bin/"
+              echo "mv ./rundir/RelWithDebInfo/data/obs-scripting/obspython.py ./rundir/RelWithDebInfo/bin/"
+
+              echo "Setting up packaging"
+              set -e
+
+              rm -rf ./OBS.app
+
+              mkdir OBS.app
+              mkdir OBS.app/Contents
+              mkdir OBS.app/Contents/MacOS
+              mkdir OBS.app/Contents/PlugIns
+              mkdir OBS.app/Contents/Resources
+
+              cp -R rundir/RelWithDebInfo/bin/ ./OBS.app/Contents/MacOS
+              cp -R rundir/RelWithDebInfo/data ./OBS.app/Contents/Resources
+              cp ../CI/scripts/macos/app/obs.icns ./OBS.app/Contents/Resources
+              cp -R rundir/RelWithDebInfo/obs-plugins/ ./OBS.app/Contents/PlugIns
+              cp ../CI/scripts/macos/app/Info.plist ./OBS.app/Contents
+
+              ../CI/scripts/macos/package/dylibBundler -b -cd -d ./OBS.app/Contents/Frameworks -p @executable_path/../Frameworks/ \
+              -s ./OBS.app/Contents/MacOS \
+              -x ./OBS.app/Contents/PlugIns/coreaudio-encoder.so \
+              -x ./OBS.app/Contents/PlugIns/decklink-ouput-ui.so \
+              -x ./OBS.app/Contents/PlugIns/frontend-tools.so \
+              -x ./OBS.app/Contents/PlugIns/image-source.so \
+              -x ./OBS.app/Contents/PlugIns/linux-jack.so \
+              -x ./OBS.app/Contents/PlugIns/mac-avcapture.so \
+              -x ./OBS.app/Contents/PlugIns/mac-capture.so \
+              -x ./OBS.app/Contents/PlugIns/mac-decklink.so \
+              -x ./OBS.app/Contents/PlugIns/mac-syphon.so \
+              -x ./OBS.app/Contents/PlugIns/mac-vth264.so \
+              -x ./OBS.app/Contents/PlugIns/obs-browser.so \
+              -x ./OBS.app/Contents/PlugIns/obs-browser-page \
+              -x ./OBS.app/Contents/PlugIns/obs-ffmpeg.so \
+              -x ./OBS.app/Contents/PlugIns/obs-filters.so \
+              -x ./OBS.app/Contents/PlugIns/obs-transitions.so \
+              -x ./OBS.app/Contents/PlugIns/obs-vst.so \
+              -x ./OBS.app/Contents/PlugIns/rtmp-services.so \
+              -x ./OBS.app/Contents/MacOS/obs \
+              -x ./OBS.app/Contents/MacOS/obs-ffmpeg-mux \
+              -x ./OBS.app/Contents/PlugIns/obs-x264.so \
+              -x ./OBS.app/Contents/PlugIns/text-freetype2.so \
+              -x ./OBS.app/Contents/PlugIns/obs-libfdk.so
+              # -x ./OBS.app/Contents/PlugIns/obs-outputs.so \
+
+              /usr/local/Cellar/qt/5.14.1/bin/macdeployqt ./OBS.app
+
+              mv ./OBS.app/Contents/MacOS/libobs-opengl.so ./OBS.app/Contents/Frameworks
+
+              rm -f -r ./OBS.app/Contents/Frameworks/QtNetwork.framework
+
+              echo "put qt network in here becasuse streamdeck uses it"
+              cp -R /usr/local/opt/qt/lib/QtNetwork.framework ./OBS.app/Contents/Frameworks
+              chmod -R +w ./OBS.app/Contents/Frameworks/QtNetwork.framework
+              rm -r ./OBS.app/Contents/Frameworks/QtNetwork.framework/Headers
+              rm -r ./OBS.app/Contents/Frameworks/QtNetwork.framework/Versions/5/Headers/
+              chmod 644 ./OBS.app/Contents/Frameworks/QtNetwork.framework/Versions/5/Resources/Info.plist
+              install_name_tool -id @executable_path/../Frameworks/QtNetwork.framework/Versions/5/QtNetwork ./OBS.app/Contents/Frameworks/QtNetwork.framework/Versions/5/QtNetwork
+              install_name_tool -change /usr/local/Cellar/qt/5.14.1/lib/QtCore.framework/Versions/5/QtCore @executable_path/../Frameworks/QtCore.framework/Versions/5/QtCore ./OBS.app/Contents/Frameworks/QtNetwork.framework/Versions/5/QtNetwork
+
+
+              echo "decklink ui qt"
+              install_name_tool -change /usr/local/opt/qt/lib/QtGui.framework/Versions/5/QtGui @executable_path/../Frameworks/QtGui.framework/Versions/5/QtGui ./OBS.app/Contents/PlugIns/decklink-ouput-ui.so
+              install_name_tool -change /usr/local/opt/qt/lib/QtCore.framework/Versions/5/QtCore @executable_path/../Frameworks/QtCore.framework/Versions/5/QtCore ./OBS.app/Contents/PlugIns/decklink-ouput-ui.so
+              install_name_tool -change /usr/local/opt/qt/lib/QtWidgets.framework/Versions/5/QtWidgets @executable_path/../Frameworks/QtWidgets.framework/Versions/5/QtWidgets ./OBS.app/Contents/PlugIns/decklink-ouput-ui.so
+
+              echo "frontend tools qt"
+              install_name_tool -change /usr/local/opt/qt/lib/QtGui.framework/Versions/5/QtGui @executable_path/../Frameworks/QtGui.framework/Versions/5/QtGui ./OBS.app/Contents/PlugIns/frontend-tools.so
+              install_name_tool -change /usr/local/opt/qt/lib/QtCore.framework/Versions/5/QtCore @executable_path/../Frameworks/QtCore.framework/Versions/5/QtCore ./OBS.app/Contents/PlugIns/frontend-tools.so
+              install_name_tool -change /usr/local/opt/qt/lib/QtWidgets.framework/Versions/5/QtWidgets @executable_path/../Frameworks/QtWidgets.framework/Versions/5/QtWidgets ./OBS.app/Contents/PlugIns/frontend-tools.so
+
+              echo "vst qt"
+              install_name_tool -change /usr/local/opt/qt/lib/QtGui.framework/Versions/5/QtGui @executable_path/../Frameworks/QtGui.framework/Versions/5/QtGui ./OBS.app/Contents/PlugIns/obs-vst.so
+              install_name_tool -change /usr/local/opt/qt/lib/QtCore.framework/Versions/5/QtCore @executable_path/../Frameworks/QtCore.framework/Versions/5/QtCore ./OBS.app/Contents/PlugIns/obs-vst.so
+              install_name_tool -change /usr/local/opt/qt/lib/QtWidgets.framework/Versions/5/QtWidgets @executable_path/../Frameworks/QtWidgets.framework/Versions/5/QtWidgets ./OBS.app/Contents/PlugIns/obs-vst.so
+              install_name_tool -change /usr/local/opt/qt/lib/QtMacExtras.framework/Versions/5/QtMacExtras @executable_path/../Frameworks/QtMacExtras.framework/Versions/5/QtMacExtras ./OBS.app/Contents/PlugIns/obs-vst.so
+
+
+              echo "fix obs outputs plugin it doesnt play nicely with dylibBundler at the moment"
+              cp /usr/local/opt/mbedtls/lib/libmbedtls.12.dylib ./OBS.app/Contents/Frameworks/
+              cp /usr/local/opt/mbedtls/lib/libmbedcrypto.3.dylib ./OBS.app/Contents/Frameworks/
+              cp /usr/local/opt/mbedtls/lib/libmbedx509.0.dylib ./OBS.app/Contents/Frameworks/
+              chmod +w ./OBS.app/Contents/Frameworks/*.dylib
+              install_name_tool -id @executable_path/../Frameworks/libmbedtls.12.dylib ./OBS.app/Contents/Frameworks/libmbedtls.12.dylib
+              install_name_tool -id @executable_path/../Frameworks/libmbedcrypto.3.dylib ./OBS.app/Contents/Frameworks/libmbedcrypto.3.dylib
+              install_name_tool -id @executable_path/../Frameworks/libmbedx509.0.dylib ./OBS.app/Contents/Frameworks/libmbedx509.0.dylib
+              install_name_tool -change libmbedtls.12.dylib @executable_path/../Frameworks/libmbedtls.12.dylib ./OBS.app/Contents/Plugins/obs-outputs.so
+              install_name_tool -change libmbedcrypto.3.dylib @executable_path/../Frameworks/libmbedcrypto.3.dylib ./OBS.app/Contents/Plugins/obs-outputs.so
+              install_name_tool -change libmbedx509.0.dylib @executable_path/../Frameworks/libmbedx509.0.dylib ./OBS.app/Contents/Plugins/obs-outputs.so
+              install_name_tool -change /usr/local/opt/curl/lib/libcurl.4.dylib @executable_path/../Frameworks/libcurl.4.dylib ./OBS.app/Contents/Plugins/obs-outputs.so
+              install_name_tool -change @rpath/libobs.0.dylib @executable_path/../Frameworks/libobs.0.dylib ./OBS.app/Contents/Plugins/obs-outputs.so
+              install_name_tool -change /tmp/obsdeps/bin/libjansson.4.dylib @executable_path/../Frameworks/libjansson.4.dylib ./OBS.app/Contents/Plugins/obs-outputs.so
+
+              echo "Copying Sparkle.framework"
+              cp -R ../../sparkle/Sparkle.framework ./OBS.app/Contents/Frameworks/
+              install_name_tool -change @rpath/Sparkle.framework/Versions/A/Sparkle @executable_path/../Frameworks/Sparkle.framework/Versions/A/Sparkle ./OBS.app/Contents/MacOS/obs
+
+              echo "Copying Chromium Embedded Framework.framework"
+              sudo mkdir -p OBS.app/Contents/Frameworks
+              sudo cp -R /Users/distiller/cef_binary_3770_macosx64/Release/Chromium\ Embedded\ Framework.framework OBS.app/Contents/Frameworks/
+
+              install_name_tool -change /usr/local/opt/qt/lib/QtGui.framework/Versions/5/QtGui @executable_path/../Frameworks/QtGui.framework/Versions/5/QtGui ./OBS.app/Contents/Plugins/obs-browser.so
+              install_name_tool -change /usr/local/opt/qt/lib/QtCore.framework/Versions/5/QtCore @executable_path/../Frameworks/QtCore.framework/Versions/5/QtCore ./OBS.app/Contents/Plugins/obs-browser.so
+              install_name_tool -change /usr/local/opt/qt/lib/QtWidgets.framework/Versions/5/QtWidgets @executable_path/../Frameworks/QtWidgets.framework/Versions/5/QtWidgets ./OBS.app/Contents/Plugins/obs-browser.so
+
+              cp ../CI/install/osx/OBSPublicDSAKey.pem OBS.app/Contents/Resources
+
+              echo "edit plist"
+              plutil -insert CFBundleVersion -string $GIT_TAG ./OBS.app/Contents/Info.plist
+              plutil -insert CFBundleShortVersionString -string $GIT_TAG ./OBS.app/Contents/Info.plist
+              plutil -insert OBSFeedsURL -string https://obsproject.com/osx_update/feeds.xml ./OBS.app/Contents/Info.plist
+              plutil -insert SUFeedURL -string https://obsproject.com/osx_update/stable/updates.xml ./OBS.app/Contents/Info.plist
+              plutil -insert SUPublicDSAKeyFile -string OBSPublicDSAKey.pem ./OBS.app/Contents/Info.plist
+
+              dmgbuild -s ../CI/install/osx/settings.json "OBS" obs.dmg
+              cp ./OBS.dmg ./OBS-Studio-Caffeine-25.0.8
+              ls
+  install_deps_win:
+    steps:
+      - run: 
+          name: Install prebuilt deps
+          command: |
+            if ((Test-Path "C:\Users\circleci\project\dependencies2017.zip")){
+                echo "Dep already exits skipping download"
+            } else {
+                $ProgressPreference = "SilentlyContinue"
+                Invoke-WebRequest -Uri https://cdn-fastly.obsproject.com/downloads/dependencies2017.zip -OutFile dependencies2017.zip
+            }
+            7z x dependencies2017.zip -odependencies2017
+  install_cmake_win:
+    steps:
+      - run:
+          name: Install cmake
+          command: |
+            if (!(Test-Path "C:\Program Files\CMake")){
+              choco install cmake --installargs 'ADD_CMAKE_TO_PATH=System' --no-progress
+            } else {
+              [Environment]::SetEnvironmentVariable("Path", $env:Path + ";C:\Program Files\CMake\bin",  `
+                                                    [EnvironmentVariableTarget]::Machine)
+            }
+            refreshenv
+  install_qt_win:
+    steps:
+      - run:
+          name: Install qt 
+          command: | 
+            if (!(Test-Path "C:\Users\circleci\project\Qt_5.10.1.7z")){
+                $ProgressPreference = "SilentlyContinue"
+                Invoke-WebRequest -Uri https://cdn-fastly.obsproject.com/downloads/Qt_5.10.1.7z -OutFile Qt_5.10.1.7z
+            } else {
+                echo "Skipping qt install"
+            }
+            7z x Qt_5.10.1.7z -oQt
+            ls
+  install_vlc_win:
+    steps:
+      - run:
+          name: Install VLC
+          command: |
+            if (!(Test-Path "C:\Users\circleci\project\vlc.zip")){
+                $ProgressPreference = "SilentlyContinue"
+                Invoke-WebRequest -Uri https://cdn-fastly.obsproject.com/downloads/vlc.zip -OutFile vlc.zip
+            } else {
+                echo "Skipping vlc install"
+            }
+            7z x vlc.zip -ovlc
+  install_cef_win:
+    steps:
+      - run: 
+          name: Install CEF
+          command: |
+            if (!(Test-Path "C:\Users\circleci\project\cef.zip")){
+                $ProgressPreference = "SilentlyContinue"
+                Invoke-WebRequest -Uri https://cdn-fastly.obsproject.com/downloads/cef_binary_75.1.16+g16a67c4+chromium-75.0.3770.100_windows64_minimal.zip -OutFile cef.zip
+            } else {
+                echo "Skipping cef install"
+            }
+            7z x cef.zip -ocef
+  install_libcaffeine_win:
+    steps:
+      - run:
+          name: Install Libcaffeine
+          command: |
+            if (!(Test-Path "C:\Users\circleci\project\libcaffeine-v0.6.1-windows.7z")){
+                $ProgressPreference = 'SilentlyContinue'  
+            Invoke-WebRequest -Uri https://github.com/caffeinetv/libcaffeine/releases/download/v0.6.1/libcaffeine-v0.6.1-windows.7z -OutFile libcaffeine-v0.6.1-windows.7z
+            } else {
+                echo "Skipping libcaffeine install"
+            }
+            7z x libcaffeine-v0.6.1-windows.7z -o"libcaffeine-v0.6.1-windows"
+            ls
+  configure_win:
+    steps:
+      - run:
+          name: Configure COBS on windows
+          command: |
+              mkdir build64; cd build64; cmake -G "Visual Studio 16 2019" -A"x64" -T"host=x64" -DCOPIED_DEPENDENCIES=false -DENABLE_SCRIPTING=true -DENABLE_UI=true -DCOMPILE_D3D12_HOOK=true -DDepsPath="C:\Users\circleci\project\dependencies2017\win64" -DQTDIR="C:\Users\circleci\project\Qt\5.10.1\msvc2017_64" -DLIBCAFFEINE_DIR="C:\Users\circleci\project\libcaffeine-v0.6.1-windows" -DCEF_ROOT_DIR="C:\Users\circleci\project\cef" -DBUILD_BROWSER=ON ..
+  build_win64:
+    steps:
+      - run:
+          name: Building COBS on windows
+          command: |
+              cd "C:\Users\circleci\project\build64"
+              msbuild /m /p:Configuration=RelWithDebInfo "obs-studio.sln"
+              robocopy ".\rundir\RelWithDebInfo" .\OBS-Studio-Caffeine /E /XF .gitignore
+              7z a .\OBS-Studio-Caffeine.7z .\OBS-Studio-Caffeine
+jobs:
+    build-macos:
+      <<: *defaults
+      macos:
+        xcode: "11.5.0"
+      shell: /bin/bash --login -eo pipefail
+      environment:
+        QTDIR: /usr/local/Cellar/qt/5.14.1
+        CEF_ROOT_DIR: cef_binary_75.1.14+gc81164e+chromium-75.0.3770.100_macosx64_minimal
+        LIBCAFFEINE_DIR: libcaffeine-v0.6.1-windows
+        HOMEBREW_NO_AUTO_UPDATE: 1
+      steps:
+        - checkout
+        - pull_submodules
+        - restore_cache:
+            name: Restoring dependency caches
+            keys: 
+              - dep_osx
+        - brew_installs
+        - install_prebuilt_deps
+        - install_vlc
+        - install_sparkle
+        - install_cef
+        - install_libcaffeine
+        - save_cache:
+            name: Saving dependency caches
+            key: dep_osx
+            paths:
+              - /Users/distiller/osx-deps-2020-04-24.tar.gz
+              - /Users/distiller/sparkle.tar.bz2
+              - /Users/distiller/vlc-3.0.8.tar.xz
+              - /Users/distiller/libcaffeine-v0.6.1-macos.7z
+              - /Users/distiller/cef_binary_3770_macosx64
+        - configure_macos64
+        - build_macos64
+        - before_deploy_osx
+        - store_artifacts:
+            path: build/obs.dmg
+            destination: obs.dmg
+    build-windows:
+      executor: 
+        name: win/default
+        shell: powershell.exe
+      environment:
+        QTDIR: Qt_5.10.1
+        CEF_ROOT_DIR: cef_binary_75.1.16+g16a67c4+chromium-75.0.3770.100_windows64_minimal
+        LIBCAFFEINE: libcaffeine-v0.6.1-windows
+      steps:
+        - checkout
+        - restore_cache:
+            name: Restoring windows dependencies
+            keys:
+              - dep_win
+        - pull_submodules
+        - restore_cache:
+            key: vers3-cmake
+        - install_cmake_win
+        - save_cache:
+            key: vers3-cmake
+            paths:
+              - C:\Program Files\CMake
+        - install_deps_win
+        - install_qt_win
+        - install_vlc_win
+        - install_cef_win
+        - install_libcaffeine_win
+        - configure_win
+        - build_win64
+        - store_artifacts:
+            path: C:\Users\circleci\project\build64\OBS-Studio-Caffeine.7z
+            destination: OBS-Studio-Caffeine.7z
+        - save_cache:
+            key: dep_win
+            paths:
+              - C:\Users\circleci\project\cef.zip
+              - C:\Users\circleci\project\libcaffeine-v0.6.1-windows.7z
+              - C:\Users\circleci\project\Qt_5.10.1.7z
+              - C:\Users\circleci\project\dependencies2017.zip
+              - C:\Users\circleci\project\vlc.zip
+
+workflows:
+  version: 2
+  macos:
+    jobs:
+      - build-macos:
+          <<: *PR_branches_only
+  windows64:
+    jobs:
+      - build-windows:
+           <<: *PR_branches_only
