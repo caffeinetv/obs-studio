@@ -602,10 +602,10 @@ void OBSBasicSettings::on_disconnectAccount_clicked()
 	}
 
 	// Remove the auth here if caffeine account is not associated
-#if !CAFFEINE_ENABLED
-	main->auth.reset();
-	auth.reset();
-#endif
+	if (ui->service->currentText() != "Caffeine") {
+		main->auth.reset();
+		auth.reset();
+	}
 
 	std::string service = QT_TO_UTF8(ui->service->currentText());
 
