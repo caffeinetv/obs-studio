@@ -3,16 +3,17 @@ name: 'CI Multiplatform Build'
 on:
   push:
     branches:
-      - master
+      - caffeine
   pull_request:
     paths-ignore:
       - '**.md'
     branches:
-      - master
+      - caffeine
 
 env:
   CEF_BUILD_VERSION: '3770'
   CEF_VERSION: '75.1.16+g16a67c4+chromium-75.0.3770.100'
+  LIBCAFFEINE_VERSION: '0.6.1'
 
 jobs:
   macos64:
@@ -37,6 +38,7 @@ jobs:
       - name: 'Install prerequisites (Homebrew)'
         shell: bash
         run: |
+          brew update
           brew bundle --file ./CI/scripts/macos/Brewfile
       - name: 'Install prerequisite: Pre-built dependencies'
         shell: bash
@@ -81,12 +83,18 @@ jobs:
           make -j4
           mkdir libcef_dll
           cd ../../
+      - name: 'Install prerequisites: Libcaffeine'
+        shell: bash
+        run: |
+          curl -L -O https://github.com/caffeinetv/libcaffeine/releases/download/v${{ env.LIBCAFFEINE_VERSION }}/libcaffeine-v${{ env.LIBCAFFEINE_VERSION }}-macos.7z
+          brew install p7zip
+          7z x libcaffeine-v${{ env.LIBCAFFEINE_VERSION }}-macos.7z -o${{ github.workspace }}/cmbuild
       - name: 'Configure'
         shell: bash
         run: |
           mkdir ./build
           cd ./build
-          cmake -DENABLE_SPARKLE_UPDATER=ON -DCMAKE_OSX_DEPLOYMENT_TARGET=10.11 -DQTDIR="/usr/local/Cellar/qt/${{ env.QT_VERSION }}" -DDepsPath="/tmp/obsdeps" -DVLCPath="${{ github.workspace }}/cmbuild/vlc-${{ env.VLC_VERSION }}" -DBUILD_BROWSER=ON -DBROWSER_DEPLOY=ON -DBUILD_CAPTIONS=ON -DWITH_RTMPS=ON -DCEF_ROOT_DIR="${{ github.workspace }}/cmbuild/cef_binary_${{ env.CEF_BUILD_VERSION }}_macosx64" ..
+          cmake -DENABLE_SPARKLE_UPDATER=ON -DDISABLE_PYTHON=ON -DCMAKE_OSX_DEPLOYMENT_TARGET=10.11 -DQTDIR="/usr/local/Cellar/qt/${{ env.QT_VERSION }}" -DDepsPath="/tmp/obsdeps" -DVLCPath="${{ github.workspace }}/cmbuild/vlc-${{ env.VLC_VERSION }}" -DENABLE_VLC=ON -DBUILD_BROWSER=ON -DBROWSER_DEPLOY=ON -DBUILD_CAPTIONS=ON -DWITH_RTMPS=ON -DCEF_ROOT_DIR="${{ github.workspace }}/cmbuild/cef_binary_${{ env.CEF_BUILD_VERSION }}_macosx64" -DLIBCAFFEINE_DIR="${{ github.workspace }}/cmbuild/libcaffeine-v${{ env.LIBCAFFEINE_VERSION }}-macos" ..
       - name: 'Build'
         shell: bash
         working-directory: ${{ github.workspace }}/build
@@ -189,7 +197,7 @@ jobs:
         run: |
           mkdir ./build
           cd ./build
-          cmake -DUNIX_STRUCTURE=0 -DCMAKE_INSTALL_PREFIX="${{ github.workspace }}/obs-studio-portable" -DBUILD_CAPTIONS=ON -DWITH_RTMPS=ON -DBUILD_BROWSER=ON -DCEF_ROOT_DIR="${{ github.workspace }}/cmbuild/cef_binary_${{ env.CEF_BUILD_VERSION }}_linux64" ..
+          cmake -DUNIX_STRUCTURE=0 -DCMAKE_INSTALL_PREFIX="${{ github.workspace }}/obs-studio-portable" -DENABLE_VLC=ON -DBUILD_CAPTIONS=ON -DWITH_RTMPS=ON -DBUILD_BROWSER=ON -DCEF_ROOT_DIR="${{ github.workspace }}/cmbuild/cef_binary_${{ env.CEF_BUILD_VERSION }}_linux64" ..
       - name: 'Build'
         shell: bash
         working-directory: ${{ github.workspace }}/build
@@ -257,12 +265,16 @@ jobs:
         run: |
           curl -kL https://cdn-fastly.obsproject.com/downloads/cef_binary_${{ env.CEF_VERSION }}_windows64_minimal.zip -f --retry 5 -o cef.zip
           7z x cef.zip -o"${{ github.workspace }}/cmbuild"
+      - name: 'Installing prerequisites: Libcaffeine'
+        run: |
+          curl -kLO https://github.com/caffeinetv/libcaffeine/releases/download/v${{ env.LIBCAFFEINE_VERSION }}/libcaffeine-v${{ env.LIBCAFFEINE_VERSION }}-windows.7z
+          7z x libcaffeine-v${{ env.LIBCAFFEINE_VERSION }}-windows.7z -o"${{ github.workspace }}/cmbuild/libcaffeine-v${{ env.LIBCAFFEINE_VERSION }}-windows"
       - name: 'Configure'
         run: |
           mkdir ./build
           mkdir ./build64
           cd ./build64
-          cmake -G"${{ env.CMAKE_GENERATOR }}" -A"x64" -DCMAKE_SYSTEM_VERSION="${{ env.CMAKE_SYSTEM_VERSION }}" -DBUILD_BROWSER=true -DBUILD_CAPTIONS=true -DCOMPILE_D3D12_HOOK=true -DDepsPath="${{ github.workspace }}/cmbuild/deps/win64" -DQTDIR="${{ github.workspace }}/cmbuild/QT/${{ env.QT_VERSION }}/msvc2017_64" -DCEF_ROOT_DIR="${{ github.workspace }}/cmdbuild/cef_binary_${{ env.CEF_VERSION }}_windows64_minimal" -DCOPIED_DEPENDENCIES=FALSE -DCOPY_DEPENDENCIES=TRUE ..
+          cmake -G"${{ env.CMAKE_GENERATOR }}" -A"x64" -DCMAKE_SYSTEM_VERSION="${{ env.CMAKE_SYSTEM_VERSION }}" -DBUILD_BROWSER=true -DBUILD_CAPTIONS=true -DCOMPILE_D3D12_HOOK=true -DDepsPath="${{ github.workspace }}/cmbuild/deps/win64" -DQTDIR="${{ github.workspace }}/cmbuild/QT/${{ env.QT_VERSION }}/msvc2017_64" -DCEF_ROOT_DIR="${{ github.workspace }}/cmdbuild/cef_binary_${{ env.CEF_VERSION }}_windows64_minimal" -DCOPIED_DEPENDENCIES=FALSE -DCOPY_DEPENDENCIES=TRUE -DLIBCAFFEINE_DIR="${{ github.workspace }}/cmbuild/libcaffeine-v${{ env.LIBCAFFEINE_VERSION }}-windows" ..
       - name: 'Build'
         run: msbuild /m /p:Configuration=RelWithDebInfo .\build64\obs-studio.sln
       - name: 'Package'
@@ -324,12 +336,16 @@ jobs:
         run: |
           curl -kL https://cdn-fastly.obsproject.com/downloads/cef_binary_${{ env.CEF_VERSION }}_windows32_minimal.zip -f --retry 5 -o cef.zip
           7z x cef.zip -o"${{ github.workspace }}/cmbuild"
+      - name: 'Installing prerequisites: Libcaffeine'
+        run: |
+          curl -kLO https://github.com/caffeinetv/libcaffeine/releases/download/v${{ env.LIBCAFFEINE_VERSION }}/libcaffeine-v${{ env.LIBCAFFEINE_VERSION }}-windows.7z
+          7z x libcaffeine-v${{ env.LIBCAFFEINE_VERSION }}-windows.7z -o"${{ github.workspace }}/cmbuild/libcaffeine-v${{ env.LIBCAFFEINE_VERSION }}-windows"
       - name: 'Configure'
         run: |
           mkdir ./build
           mkdir ./build32
           cd ./build32
-          cmake -G"${{ env.CMAKE_GENERATOR }}" -A"Win32" -DCMAKE_SYSTEM_VERSION="${{ env.CMAKE_SYSTEM_VERSION }}" -DBUILD_BROWSER=true -DBUILD_CAPTIONS=true -DCOMPILE_D3D12_HOOK=true -DDepsPath="${{ github.workspace }}/cmbuild/deps/win32" -DQTDIR="${{ github.workspace }}/cmbuild/QT/${{ env.QT_VERSION }}/msvc2017" -DCEF_ROOT_DIR="${{ github.workspace }}/cmdbuild/cef_binary_${{ env.CEF_VERSION }}_windows32_minimal" -DCOPIED_DEPENDENCIES=FALSE -DCOPY_DEPENDENCIES=TRUE ..
+          cmake -G"${{ env.CMAKE_GENERATOR }}" -A"Win32" -DCMAKE_SYSTEM_VERSION="${{ env.CMAKE_SYSTEM_VERSION }}" -DBUILD_BROWSER=true -DBUILD_CAPTIONS=true -DCOMPILE_D3D12_HOOK=true -DDepsPath="${{ github.workspace }}/cmbuild/deps/win32" -DQTDIR="${{ github.workspace }}/cmbuild/QT/${{ env.QT_VERSION }}/msvc2017" -DCEF_ROOT_DIR="${{ github.workspace }}/cmdbuild/cef_binary_${{ env.CEF_VERSION }}_windows32_minimal" -DCOPIED_DEPENDENCIES=FALSE -DCOPY_DEPENDENCIES=TRUE -DLIBCAFFEINE_DIR="${{ github.workspace }}/cmbuild/libcaffeine-v${{ env.LIBCAFFEINE_VERSION }}-windows" ..
       - name: 'Build'
         run: msbuild /m /p:Configuration=RelWithDebInfo .\build32\obs-studio.sln
       - name: 'Package'
