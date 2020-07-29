@@ -3622,6 +3622,12 @@ void OBSBasicSettings::on_buttonBox_clicked(QAbstractButton *button)
 
 	if (val == QDialogButtonBox::ApplyRole ||
 	    val == QDialogButtonBox::AcceptRole) {
+#if CAFFEINE_ENABLED
+		if (ui->connectAccount2->isVisible() && main->auth) {
+			main->auth.reset();
+			auth.reset();
+		}
+#endif
 		SaveSettings();
 		ClearChanged();
 	}

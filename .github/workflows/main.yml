@@ -38,7 +38,7 @@ jobs:
       - name: 'Install prerequisites (Homebrew)'
         shell: bash
         run: |
-          brew update
+          brew update --preinstall 
           brew bundle --file ./CI/scripts/macos/Brewfile
       - name: 'Install prerequisite: Pre-built dependencies'
         shell: bash
