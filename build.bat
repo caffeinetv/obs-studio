@@ -13,7 +13,8 @@ goto :MAIN
     if not defined obsInstallerTempDir goto :error 
     if not defined DepsPath goto :error 
     if not defined LIBCAFFEINE_DIR goto :error 
-    if not defined CEF_ROOT_DIR goto :error
+    if not defined CEF_ROOT_DIR goto :error 
+    if not defined VLCPATH goto :error 
     echo Successfully found all the dependencies.
     goto:EOF
 
@@ -34,8 +35,10 @@ goto :MAIN
     if ERRORLEVEL 1 goto:EOF
     call :clean build64
     echo Building 64 bit version 
-    cmake -H. -Bbuild64 -G "Visual Studio 16 2019" -A"x64" -T"host=x64" -DCOPIED_DEPENDENCIES=OFF -DENABLE_SCRIPTING=ON -DENABLE_UI=ON -DCOMPILE_D3D12_HOOK=ON -DDepsPath="%DepsPath%" -DQTDIR="%QTDIR%" -DLIBCAFFEINE_DIR="%LIBCAFFEINE_DIR%" -DCEF_ROOT_DIR="%CEF_ROOT_DIR%" -DBUILD_BROWSER=ON 
-    cmake --build build64 --config RelWithDebInfo
+    cd build64
+    cmake -G"Visual Studio 16 2019" -A"x64" -DCMAKE_SYSTEM_VERSION="10.0.18363.657" -DBUILD_BROWSER=true -DCOMPILE_D3D12_HOOK=true -DDepsPath="%DepsPath%" -DQTDIR="%QTDIR%" -DENABLE_VLC=ON -DVLCPath="%VLCPATH%" -DCEF_ROOT_DIR="%CEF_ROOT_DIR%" -DCOPIED_DEPENDENCIES=FALSE -DCOPY_DEPENDENCIES=TRUE  -DLIBCAFFEINE_DIR="%LIBCAFFEINE_DIR%" ..    
+    cd ..
+    msbuild /m /p:Configuration=RelWithDebInfo .\build64\obs-studio.sln
     echo Built 64 bit COBS
     goto:EOF
 
@@ -64,7 +67,7 @@ goto :MAIN
 
 :: @function for error handling
 :error
-    echo Error missing dependencies.Check if environment variables are set for QTDIR, obsInstallerTempDir, DepsPath, LIBCAFFEINE_DIR or CEF_ROOT_DIR.
+    echo Error missing dependencies.Check if environment variables are set for QTDIR, obsInstallerTempDir, DepsPath, LIBCAFFEINE_DIR, CEF_ROOT_DIR or VLCPATH.
     EXIT /b 1
     goto:EOF
 
