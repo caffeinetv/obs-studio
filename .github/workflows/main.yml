@@ -32,9 +32,9 @@ jobs:
       - name: 'Fetch Git Tags'
         run: |
           git fetch --prune --unshallow
-          echo ::set-env name=OBS_GIT_BRANCH::$(git rev-parse --abbrev-ref HEAD)
-          echo ::set-env name=OBS_GIT_HASH::$(git rev-parse --short HEAD)
-          echo ::set-env name=OBS_GIT_TAG::$(git describe --tags --abbrev=0)
+          echo OBS_GIT_BRANCH=$(git rev-parse --abbrev-ref HEAD) | tee -a $GITHUB_ENV
+          echo OBS_GIT_HASH=$(git rev-parse --short HEAD) | tee -a $GITHUB_ENV
+          echo OBS_GIT_TAG=$(git describe --tags --abbrev=0) | tee -a $GITHUB_ENV
       - name: 'Install prerequisites (Homebrew)'
         shell: bash
         run: |
@@ -116,7 +116,7 @@ jobs:
         run: |
           FILE_DATE=$(date +%Y-%m-%d)
           FILE_NAME=$FILE_DATE-${{ env.OBS_GIT_HASH }}-${{ env.OBS_GIT_TAG }}-osx.dmg
-          echo "::set-env name=FILE_NAME::${FILE_NAME}"
+          echo "FILE_NAME=${FILE_NAME}" | tee -a $GITHUB_ENV
           ./CI/scripts/macos/prepareApp.sh
           dmgbuild -s ./CI/scripts/macos/package/settings.json "OBS" OBS.dmg
           mkdir ./nightly
@@ -138,9 +138,9 @@ jobs:
       - name: 'Fetch Git Tags'
         run: |
           git fetch --prune --unshallow
-          echo ::set-env name=OBS_GIT_BRANCH::$(git rev-parse --abbrev-ref HEAD)
-          echo ::set-env name=OBS_GIT_HASH::$(git rev-parse --short HEAD)
-          echo ::set-env name=OBS_GIT_TAG::$(git describe --tags --abbrev=0)
+          echo OBS_GIT_BRANCH=$(git rev-parse --abbrev-ref HEAD) | tee -a $GITHUB_ENV
+          echo OBS_GIT_HASH=$(git rev-parse --short HEAD) | tee -a $GITHUB_ENV
+          echo OBS_GIT_TAG=$(git describe --tags --abbrev=0) | tee -a $GITHUB_ENV
       - name: Install prerequisites (Apt)
         shell: bash
         run: |
@@ -208,7 +208,7 @@ jobs:
         run: |
           FILE_DATE=$(date +%Y-%m-%d)
           FILE_NAME=$FILE_DATE-${{ env.OBS_GIT_HASH }}-${{ env.OBS_GIT_TAG }}-linux64.tar.gz
-          echo "::set-env name=FILE_NAME::${FILE_NAME}"
+          echo "FILE_NAME=${FILE_NAME}" | tee -a $GITHUB_ENV
           cd ./build
           sudo checkinstall --default --install=no --pkgname=obs-studio --fstrans=yes --backup=no --pkgversion="$(date +%Y%m%d)-git" --deldoc=yes
           mkdir ../nightly
@@ -246,9 +246,9 @@ jobs:
         shell: bash
         run: |
           git fetch --prune --unshallow
-          echo ::set-env name=OBS_GIT_BRANCH::$(git rev-parse --abbrev-ref HEAD)
-          echo ::set-env name=OBS_GIT_HASH::$(git rev-parse --short HEAD)
-          echo ::set-env name=OBS_GIT_TAG::$(git describe --tags --abbrev=0)
+          echo OBS_GIT_BRANCH=$(git rev-parse --abbrev-ref HEAD) | tee -a $GITHUB_ENV
+          echo OBS_GIT_HASH=$(git rev-parse --short HEAD) | tee -a $GITHUB_ENV
+          echo OBS_GIT_TAG=$(git describe --tags --abbrev=0) | tee -a $GITHUB_ENV
       - name: 'Install prerequisite: QT'
         run: |
           curl -kLO https://cdn-fastly.obsproject.com/downloads/Qt_${{ env.QT_VERSION }}.7z -f --retry 5 -C -
@@ -282,7 +282,7 @@ jobs:
         run: |
           $env:FILE_DATE=(Get-Date -UFormat "%F")
           $env:FILE_NAME="${env:FILE_DATE}-${{ env.OBS_GIT_HASH }}-${{ env.OBS_GIT_TAG }}-win64.zip"
-          echo "::set-env name=FILE_NAME::${env:FILE_NAME}"
+          echo "FILE_NAME=${env:FILE_NAME}" | tee -a $GITHUB_ENV
           robocopy .\build64\rundir\RelWithDebInfo .\build\ /E /XF .gitignore
           7z a ${env:FILE_NAME} .\build\*
       - name: 'Publish'
@@ -317,9 +317,9 @@ jobs:
         shell: bash
         run: |
           git fetch --prune --unshallow
-          echo ::set-env name=OBS_GIT_BRANCH::$(git rev-parse --abbrev-ref HEAD)
-          echo ::set-env name=OBS_GIT_HASH::$(git rev-parse --short HEAD)
-          echo ::set-env name=OBS_GIT_TAG::$(git describe --tags --abbrev=0)
+          echo OBS_GIT_BRANCH=$(git rev-parse --abbrev-ref HEAD) | tee -a $GITHUB_ENV
+          echo OBS_GIT_HASH=$(git rev-parse --short HEAD) | tee -a $GITHUB_ENV
+          echo OBS_GIT_TAG=$(git describe --tags --abbrev=0) | tee -a $GITHUB_ENV
       - name: 'Install prerequisite: QT'
         run: |
           curl -kLO https://cdn-fastly.obsproject.com/downloads/Qt_${{ env.QT_VERSION }}.7z -f --retry 5 -C -
@@ -353,7 +353,7 @@ jobs:
         run: |
           $env:FILE_DATE=(Get-Date -UFormat "%F")
           $env:FILE_NAME="${env:FILE_DATE}-${{ env.OBS_GIT_HASH }}-${{ env.OBS_GIT_TAG }}-win32.zip"
-          echo "::set-env name=FILE_NAME::${env:FILE_NAME}"
+          echo "FILE_NAME=${env:FILE_NAME}" | tee -a $GITHUB_ENV
           robocopy .\build32\rundir\RelWithDebInfo .\build\ /E /XF .gitignore
           7z a ${env:FILE_NAME} .\build\*
       - name: 'Publish'
