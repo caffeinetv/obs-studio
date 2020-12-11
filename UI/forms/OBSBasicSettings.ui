@@ -986,17 +986,6 @@
                </property>
               </spacer>
              </item>
-             <item row="2" column="1">
-              <layout class="QHBoxLayout" name="horizontalLayout_30">
-               <item>
-                <widget class="QLabel" name="authSignedInAs">
-                 <property name="text">
-                  <string>TextLabel</string>
-                 </property>
-                </widget>
-               </item>
-              </layout>
-             </item>
             </layout>
            </widget>
            <widget class="QWidget" name="streamKeyPage">
@@ -1283,6 +1272,26 @@
               <widget class="QLabel" name="enforceSettingsLabel">
                <property name="text">
                 <string notr="true"/>
+               </property>
+              </widget>
+             </item>
+             <item row="2" column="0">
+              <widget class="QLabel" name="authSignedInAsLabel">
+               <property name="frameShape">
+                <enum>QFrame::NoFrame</enum>
+               </property>
+               <property name="text">
+                <string>Basic.Settings.Stream.Custom.SignedInAs</string>
+               </property>
+              </widget>
+             </item>
+             <item row="2" column="1">
+              <widget class="QLabel" name="authSignedInAs">
+               <property name="frameShape">
+                <enum>QFrame::NoFrame</enum>
+               </property>
+               <property name="text">
+                <string>SomeUser</string>
                </property>
               </widget>
              </item>

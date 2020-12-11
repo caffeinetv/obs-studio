@@ -29,6 +29,7 @@
 #include <obs.hpp>
 
 #include "auth-base.hpp"
+#include "ui-config.h"
 
 class OBSBasic;
 class QAbstractButton;
