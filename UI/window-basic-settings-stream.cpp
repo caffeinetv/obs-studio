@@ -41,7 +41,7 @@ void OBSBasicSettings::InitStreamPage()
 	ui->disconnectAccount->setVisible(false);
 	ui->bandwidthTestEnable->setVisible(false);
 	ui->authSignedInAs->setVisible(false);
-	//ui->authSignedInAsLabel->setVisible(false);
+	ui->authSignedInAsLabel->setVisible(false);
 	ui->twitchAddonDropdown->setVisible(false);
 	ui->twitchAddonLabel->setVisible(false);
 
@@ -156,12 +156,9 @@ void OBSBasicSettings::LoadStream1Settings()
 #if CAFFEINE_ENABLED
 		if (username && username[0]) {
 			lastSignedInAs = username;
-			//ui->authSignedInAsLabel->setVisible(true);
+			ui->authSignedInAsLabel->setVisible(true);
 			ui->authSignedInAs->setVisible(true);
 			ui->authSignedInAs->setText(QT_UTF8(username));
-		} else {
-			//ui->authSignedInAsLabel->setVisible(false);
-			ui->authSignedInAs->setVisible(false);
 		}
 #endif
 	}
@@ -433,12 +430,12 @@ void OBSBasicSettings::on_service_currentIndexChanged(int)
 	bool isCaffeine = service == "Caffeine";
 	ui->authSignedInAs->setVisible(authenticated && isCaffeine);
 	ui->authSignedInAs->setText(lastSignedInAs);
+	ui->authSignedInAsLabel->setVisible(authenticated && isCaffeine);
 #endif
 	ui->connectAccount->setVisible(can_auth && !authenticated);
 	ui->disconnectAccount->setVisible(can_auth && authenticated);
 	ui->connectAccount2->setVisible(can_auth && !authenticated);
-#else
-	ui->connectAccount2->setVisible(false);
+
 #endif
 
 	ui->useAuth->setVisible(custom);
@@ -569,7 +566,7 @@ void OBSBasicSettings::OnOAuthStreamKeyConnected()
 		if (std::string(a->service()) == "Caffeine") {
 			auto caffeine = dynamic_cast<CaffeineAuth *>(a);
 			lastSignedInAs = caffeine->GetUsername().c_str();
-			//ui->authSignedInAsLabel->setVisible(true);
+			ui->authSignedInAsLabel->setVisible(true);
 			ui->authSignedInAs->setVisible(true);
 			ui->authSignedInAs->setText(lastSignedInAs);
 		}
@@ -656,10 +653,16 @@ void OBSBasicSettings::on_disconnectAccount_clicked()
 	ui->disconnectAccount->setVisible(false);
 	ui->bandwidthTestEnable->setVisible(false);
 	ui->authSignedInAs->setVisible(false);
-	//ui->authSignedInAsLabel->setVisible(false);#
+	ui->authSignedInAsLabel->setVisible(false);
 	ui->twitchAddonDropdown->setVisible(false);
 	ui->twitchAddonLabel->setVisible(false);
 	ui->key->setText("");
+
+// Hide stream keys for Caffeine we do not support it.
+#if CAFFEINE_ENABLED
+	ui->streamKeyWidget->setVisible(false);
+	ui->streamKeyLabel->setVisible(false);
+#endif
 }
 
 void OBSBasicSettings::on_useStreamKey_clicked()
