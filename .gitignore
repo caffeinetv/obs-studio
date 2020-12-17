@@ -22,6 +22,11 @@
 .ninja*
 .dirstamp
 
+#dependencies
+/libcaffeine-v0.6.1-macos/
+/vlc-3.0.8/
+/CI/scripts/macos/Brewfile.lock.json
+
 #xcode
 *.xcodeproj/
 
