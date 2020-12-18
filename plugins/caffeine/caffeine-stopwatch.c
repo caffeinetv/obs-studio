@@ -1,7 +1,6 @@
 #include "caffeine-stopwatch.h"
 #include <memory.h>
 #include <obs.h>
-#include <Windows.h>
 
 void caffeine_stopwatch_init(caffeine_stopwatch_t* lpsw)
 {
