@@ -56,6 +56,8 @@ This causes a little bit of macro salsa, but we can remove it later */
 static int const enforced_height = 720;
 static int const slow_connection_wait_ms = 66;
 
+
+
 struct caffeine_audio {
 	struct audio_data *frames;
 	struct caffeine_audio *next;
@@ -66,6 +68,8 @@ struct caffeine_output {
 	caff_InstanceHandle instance;
 	struct obs_video_info video_info;
 	uint64_t start_timestamp;
+	uint64_t timestamp_window_pos;
+	uint64_t timestamp_window_neg;
 	size_t audio_planes;
 	size_t audio_size;
 
@@ -528,6 +532,15 @@ static void caffeine_raw_video(void *data, struct video_data *frame)
 	if (!context->start_timestamp)
 		context->start_timestamp = frame->timestamp;
 
+	uint64_t timestamp_window_pos = context->timestamp_window_pos;
+	uint64_t timestamp_window_neg = context->timestamp_window_neg;
+	if ((timestamp_window_pos > 0) && (timestamp_window_neg > 0)) {
+		if ((frame->timestamp > context->timestamp_window_pos) ||
+		    (frame->timestamp < context->timestamp_window_neg)) {
+			send_frame = false;
+		}
+	}
+
 	uint32_t width = context->video_info.output_width;
 	uint32_t height = context->video_info.output_height;
 	size_t total_bytes = frame->linesize[0] * height;
@@ -581,6 +594,11 @@ static void caffeine_raw_audio(void *data, struct audio_data *frames)
 	if (!prepare_audio(context, frames, &in)) {
 		return;
 	}
+
+	const uint64_t timestamp_pos_adj = 50UL * 1000000UL;
+	const uint64_t timestamp_neg_adj = 50UL * 1000000UL;
+	context->timestamp_window_pos = frames->timestamp + timestamp_pos_adj;
+	context->timestamp_window_neg = frames->timestamp - timestamp_neg_adj;
 
 	// Create a copy of the audio data for queuing.
 	// ToDo: Can this be optimized to use circlebuf for data?
@@ -702,3 +720,4 @@ struct obs_output_info caffeine_output_info = {
 	.raw_video = caffeine_raw_video,
 	.raw_audio = caffeine_raw_audio,
 };
+
