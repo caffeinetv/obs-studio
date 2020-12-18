@@ -595,8 +595,8 @@ static void caffeine_raw_audio(void *data, struct audio_data *frames)
 		return;
 	}
 
-	const uint64_t timestamp_pos_adj = 50UL * 1000000UL;
-	const uint64_t timestamp_neg_adj = 50UL * 1000000UL;
+	const uint64_t timestamp_pos_adj = 105UL * 1000000UL;
+	const uint64_t timestamp_neg_adj = 105UL * 1000000UL;
 	context->timestamp_window_pos = frames->timestamp + timestamp_pos_adj;
 	context->timestamp_window_neg = frames->timestamp - timestamp_neg_adj;
 
