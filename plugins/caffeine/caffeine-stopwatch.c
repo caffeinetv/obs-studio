@@ -2,12 +2,12 @@
 #include <memory.h>
 #include <obs.h>
 
-void caffeine_stopwatch_init(caffeine_stopwatch_t* lpsw)
+void caffeine_stopwatch_init(caffeine_stopwatch_t *lpsw)
 {
 	memset(lpsw, 0, sizeof(caffeine_stopwatch_t));
 }
 
-void caffeine_stopwatch_start(caffeine_stopwatch_t* lpsw)
+void caffeine_stopwatch_start(caffeine_stopwatch_t *lpsw)
 {
 	uint64_t time_ns = 0UL;
 	if (!lpsw->running) {
@@ -18,7 +18,7 @@ void caffeine_stopwatch_start(caffeine_stopwatch_t* lpsw)
 	}
 }
 
-void caffeine_stopwatch_stop(caffeine_stopwatch_t* lpsw)
+void caffeine_stopwatch_stop(caffeine_stopwatch_t *lpsw)
 {
 	uint64_t time_ns = 0UL;
 	if (!lpsw->running) {
@@ -40,7 +40,8 @@ void caffeine_stopwatch_reset(caffeine_stopwatch_t *lpsw)
 	}
 }
 
-uint64_t caffeine_stopwatch_get_elapsed_ns(caffeine_stopwatch_t *lpsw) {
+uint64_t caffeine_stopwatch_get_elapsed_ns(caffeine_stopwatch_t *lpsw)
+{
 	uint64_t time_ns = 0UL;
 	uint64_t accumulation_total = lpsw->accumulator;
 	if (lpsw->running) {

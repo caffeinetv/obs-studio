@@ -21,8 +21,6 @@ void caffeine_sample_logger_log(caffeine_sample_logger_t *lpsl,
 	}
 }
 
-
-
 bool caffeine_sample_logger_init(caffeine_sample_logger_t *lpsl,
 				 const char *file_name)
 {
@@ -33,19 +31,20 @@ bool caffeine_sample_logger_init(caffeine_sample_logger_t *lpsl,
 		fclose(file_handle);
 		lpsl->is_ok = true;
 	}
-	caffeine_sample_logger_log(lpsl, "sample"
-					 ",sent to libcaffeine"
-					 ",reason"
-					 ",wall time (ms)"
-					 ",wall time delta (ms)"
-					 ",sample obs timestamp (ms)"
-					 ",sample obs timestamp delta (ms)"
-					 ",sample obs timestamp delta from pair (ms)"
-					 ",caffeine func time (ms)"
-					 ",caffeine func time delta (ms)"
-					 ",obs app time (ms)"
-					 ",obs app time delta (ms)"
-					 "\r\n");
+	caffeine_sample_logger_log(lpsl,
+				   "sample"
+				   ",sent to libcaffeine"
+				   ",reason"
+				   ",wall time (ms)"
+				   ",wall time delta (ms)"
+				   ",sample obs timestamp (ms)"
+				   ",sample obs timestamp delta (ms)"
+				   ",sample obs timestamp delta from pair (ms)"
+				   ",caffeine func time (ms)"
+				   ",caffeine func time delta (ms)"
+				   ",obs app time (ms)"
+				   ",obs app time delta (ms)"
+				   "\r\n");
 	return lpsl->is_ok;
 }
 

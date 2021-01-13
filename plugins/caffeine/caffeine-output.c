@@ -57,7 +57,6 @@ static int const enforced_height = 720;
 static int const slow_connection_wait_ms = 66;
 static uint64_t const av_sync_tolerance_window_ms = 105UL;
 
-
 struct caffeine_audio {
 	struct audio_data *frames;
 	struct caffeine_audio *next;
@@ -334,7 +333,7 @@ static bool caffeine_start(void *data)
 		caffeine_stopwatch_start(&context->slow_connection_stopwatch);
 	}
 
-	#ifdef USE_SAMPLE_LOG
+#ifdef USE_SAMPLE_LOG
 	context->raw_video_left_func_timestamp_ns = 0UL;
 	context->raw_audio_left_func_timestamp_ns = 0UL;
 	caffeine_stopwatch_init(&context->sample_stopwatch);
@@ -343,7 +342,7 @@ static bool caffeine_start(void *data)
 				    AUDIO_SAMPLE_LOG_FILE);
 	caffeine_sample_logger_init(&context->raw_video_sample_logger,
 				    VIDEO_SAMPLE_LOG_FILE);
-	#endif
+#endif
 
 	if (!obs_get_video_info(&context->video_info)) {
 		set_error(output, "Failed to get video info");
@@ -617,14 +616,13 @@ static void caffeine_raw_audio(void *data, struct audio_data *frames)
 
 	uint64_t last_pair_timestamp_ns = context->video_last_timestamp;
 
-	uint64_t duration =
-		((uint64_t)frames->frames) * NANOSECONDS / CAFF_AUDIO_SAMPLERATE;
+	uint64_t duration = ((uint64_t)frames->frames) * NANOSECONDS /
+			    CAFF_AUDIO_SAMPLERATE;
 	uint64_t end_ts = (frames->timestamp + duration);
 	uint64_t center_samples_ts = (frames->timestamp + end_ts) / 2;
 	context->audio_last_timestamp = center_samples_ts;
 
-	const uint64_t timestamp_adj =
-		av_sync_tolerance_window_ms * 1000000UL;
+	const uint64_t timestamp_adj = av_sync_tolerance_window_ms * 1000000UL;
 	context->timestamp_window_pos = center_samples_ts + timestamp_adj;
 	context->timestamp_window_neg = center_samples_ts - timestamp_adj;
 
@@ -749,4 +747,3 @@ struct obs_output_info caffeine_output_info = {
 	.raw_video = caffeine_raw_video,
 	.raw_audio = caffeine_raw_audio,
 };
-

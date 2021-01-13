@@ -17,4 +17,3 @@ uint64_t caffeine_stopwatch_get_elapsed_ns(caffeine_stopwatch_t *lpsw);
 uint64_t caffeine_stopwatch_get_elapsed_ms(caffeine_stopwatch_t *lpsw);
 void caffeine_stopwatch_copy_state(caffeine_stopwatch_t *lpsw_dest,
 				   caffeine_stopwatch_t *lpsw_src);
-
