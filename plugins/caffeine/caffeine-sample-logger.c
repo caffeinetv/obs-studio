@@ -12,7 +12,7 @@ void caffeine_sample_logger_log(caffeine_sample_logger_t *lpsl,
 	memset(lpsl->line_buff, 0, sizeof(lpsl->line_buff));
 	va_start(args, format);
 	int num_chars = vsnprintf(lpsl->line_buff, sizeof(lpsl->line_buff),
-				   format, args);
+				  format, args);
 	va_end(args);
 	FILE *file_handle = fopen(lpsl->file_name, "a+b");
 	if (file_handle) {
@@ -25,7 +25,7 @@ bool caffeine_sample_logger_init(caffeine_sample_logger_t *lpsl,
 				 const char *file_name)
 {
 	memset(lpsl, 0, sizeof(caffeine_sample_logger_t));
-	strlcpy(lpsl->file_name, file_name, sizeof(lpsl->file_name) );
+	strlcpy(lpsl->file_name, file_name, sizeof(lpsl->file_name));
 	FILE *file_handle = fopen(lpsl->file_name, "w+b");
 	if (file_handle) {
 		fclose(file_handle);
