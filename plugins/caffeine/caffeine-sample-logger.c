@@ -25,7 +25,7 @@ bool caffeine_sample_logger_init(caffeine_sample_logger_t *lpsl,
 				 const char *file_name)
 {
 	memset(lpsl, 0, sizeof(caffeine_sample_logger_t));
-	strlcpy(lpsl->file_name, file_name, sizeof(lpsl->file_name));
+	strncpy(lpsl->file_name, file_name, sizeof(lpsl->file_name));
 	FILE *file_handle = fopen(lpsl->file_name, "w+b");
 	if (file_handle) {
 		fclose(file_handle);
