@@ -124,11 +124,23 @@ void CaffeineAuth::LoadUI()
 		return;
 	/* TODO: Chat */
 
+	OBSBasic *main = OBSBasic::Get();
 	// Panel
 	panelDock = QSharedPointer<CaffeineInfoPanel>(
 			    new CaffeineInfoPanel(this, instance))
 			    .dynamicCast<OBSDock>();
 
+	// Set min size of panel so it doesn't get clipped when docked
+	panelDock->setMinimumSize(268, 270);
+	if (firstLoad) {
+		panelDock->setVisible(true);
+	} else {
+		const char *dockStateStr = config_get_string(
+			main->Config(), service(), "DockState");
+		QByteArray dockState =
+			QByteArray::fromBase64(QByteArray(dockStateStr));
+		main->restoreState(dockState);
+	}
 	uiLoaded = true;
 	return;
 }
