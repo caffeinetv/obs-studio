@@ -11,8 +11,7 @@
    </rect>
   </property>
   <property name="styleSheet">
-   <string notr="true">font-family: &quot;Segoe UI&quot;;
-font-size: 14px;</string>
+   <string notr="true"/>
   </property>
   <property name="floating">
    <bool>true</bool>
@@ -31,7 +30,7 @@ font-size: 14px;</string>
     </sizepolicy>
    </property>
    <property name="styleSheet">
-    <string notr="true">background: rgb(34, 34, 34);</string>
+    <string notr="true"/>
    </property>
    <layout class="QVBoxLayout" name="primaryLayout">
     <property name="spacing">
@@ -111,13 +110,10 @@ font-size: 14px;</string>
             <property name="font">
              <font>
               <family>Segoe UI</family>
-              <pointsize>-1</pointsize>
              </font>
             </property>
             <property name="styleSheet">
-             <string notr="true">font-family: &quot;Segoe UI&quot;;
-font-size: 14px;
-color: rgb(139, 139, 139);</string>
+             <string notr="true"/>
             </property>
             <property name="text">
              <string comment="Caffeine.Dock.RatingAndTitle">Set your broadcasts rating and title:</string>
@@ -181,13 +177,11 @@ color: rgb(139, 139, 139);</string>
                <property name="font">
                 <font>
                  <family>Segoe UI</family>
-                 <pointsize>-1</pointsize>
                  <kerning>true</kerning>
                 </font>
                </property>
                <property name="styleSheet">
-                <string notr="true">border: 1px solid rgb(72, 72, 72);
-color: rgb(255, 255, 255);</string>
+                <string notr="true"/>
                </property>
                <item>
                 <property name="text">
@@ -213,12 +207,10 @@ color: rgb(255, 255, 255);</string>
                <property name="font">
                 <font>
                  <family>Segoe UI</family>
-                 <pointsize>-1</pointsize>
                 </font>
                </property>
                <property name="styleSheet">
-                <string notr="true">border: 1px solid rgb(72, 72, 72);
-color: rgb(255, 255, 255);</string>
+                <string notr="true"/>
                </property>
                <property name="text">
                 <string notr="true">LIVE on Caffeine!</string>
@@ -252,31 +244,19 @@ color: rgb(255, 255, 255);</string>
             <property name="font">
              <font>
               <family>Segoe UI</family>
-              <pointsize>-1</pointsize>
              </font>
             </property>
             <property name="cursor">
              <cursorShape>PointingHandCursor</cursorShape>
             </property>
             <property name="styleSheet">
-             <string notr="true">QPushButton {
-	font-size: 12px;
-	color: rgb(0, 159, 224);
-}
-
-QPushButton:hover {
-	color: rgb(255, 255, 255);
-}
-
-QPushButton:pressed {
-	color: rgb(0, 159, 224);
-}</string>
+             <string notr="true"/>
             </property>
             <property name="text">
              <string comment="Caffeine.Dock.UpdateRatingAndTitle">Update rating and title</string>
             </property>
             <property name="flat">
-             <bool>true</bool>
+             <bool>false</bool>
             </property>
            </widget>
           </item>
@@ -472,23 +452,19 @@ QPushButton:pressed {
                   <property name="font">
                    <font>
                     <family>Segoe UI</family>
-                    <pointsize>-1</pointsize>
                    </font>
                   </property>
                   <property name="cursor">
                    <cursorShape>PointingHandCursor</cursorShape>
                   </property>
                   <property name="styleSheet">
-                   <string notr="true">border-radius: 5px;
-border: 1px solid rgb(151, 151, 151);
-color: rgb(255, 255, 255);
-</string>
+                   <string notr="true"/>
                   </property>
                   <property name="text">
                    <string comment="Caffeine.Dock.ViewOnWeb" extracomment="Button to open the panel in a web browser.">View on web</string>
                   </property>
                   <property name="flat">
-                   <bool>true</bool>
+                   <bool>false</bool>
                   </property>
                  </widget>
                 </item>
@@ -538,16 +514,10 @@ color: rgb(255, 255, 255);
                <property name="font">
                 <font>
                  <family>Segoe UI</family>
-                 <pointsize>-1</pointsize>
                 </font>
                </property>
                <property name="styleSheet">
-                <string notr="true">color: rgb(139, 139, 139);
-line-height: 14px;
-text-align: center;
-font-size: 10px;
-padding-left: 40px;
-padding-right: 40px;</string>
+                <string notr="true"/>
                </property>
                <property name="text">
                 <string comment="Caffeine.Dock.ViewOnWebDescription">&lt;html&gt;&lt;body&gt;&lt;p&gt;View on web to see credits, viewers, and chat with your audience.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
