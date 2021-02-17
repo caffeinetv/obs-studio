@@ -76,7 +76,7 @@ try {
 	QString text = QTStr("Auth.ChannelFailure.Text")
 			       .arg(service(), info.message.c_str(),
 				    info.error.c_str());
-					
+
 	QMessageBox::warning(OBSBasic::Get(), title, text);
 
 	blog(LOG_WARNING, "%s: %s: %s", __FUNCTION__, info.message.c_str(),

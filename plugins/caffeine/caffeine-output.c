@@ -290,7 +290,8 @@ static bool caffeine_start(void *data)
 	case caff_ResultSuccess:
 		break;
 	case caff_ResultInternetDisconnected:
-		set_error(output, "%s", obs_module_text("ErrorInternetDisconnected"));
+		set_error(output, "%s",
+			  obs_module_text("ErrorInternetDisconnected"));
 		return false;
 	default:
 		log_warn("Failed to check internet connection");
@@ -456,15 +457,15 @@ static void caffeine_stream_failed(void *data, caff_Result error)
 	struct caffeine_output *context = data;
 
 	if (!obs_output_get_last_error(context->output)) {
-		if (caff_checkInternetConnection() == caff_ResultInternetDisconnected) {
+		if (caff_checkInternetConnection() ==
+		    caff_ResultInternetDisconnected) {
 			set_error(context->output, "%s",
-			  obs_module_text("ErrorInternetDisconnected"));
+				  obs_module_text("ErrorInternetDisconnected"));
 		} else {
 			set_error(context->output, "%s: [%d] %s",
-						obs_module_text("ErrorStartStream"), error,
-						caff_resultString(error));
+				  obs_module_text("ErrorStartStream"), error,
+				  caff_resultString(error));
 		}
-		
 	}
 
 	if (context->is_online) {
