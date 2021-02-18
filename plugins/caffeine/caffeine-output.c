@@ -337,7 +337,8 @@ static bool caffeine_start(void *data)
 
 	context->test_frame_drop_percent = 0;
 
-	const char *test_frame_drop_percent = getenv("CAFFEINE_COBS_TEST_FRAME_DROP_PERCENT");
+	const char *test_frame_drop_percent =
+		getenv("CAFFEINE_COBS_TEST_FRAME_DROP_PERCENT");
 	if (NULL != test_frame_drop_percent) {
 		context->test_frame_drop_percent =
 			min(max(0, atoi(test_frame_drop_percent)), 99);
