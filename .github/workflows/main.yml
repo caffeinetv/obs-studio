@@ -564,7 +564,7 @@ jobs:
       - name: 'Installing prerequisites: Libcaffeine'
         run: |
           curl -kLO https://github.com/caffeinetv/libcaffeine/releases/download/v${{ env.LIBCAFFEINE_VERSION }}/libcaffeine-v${{ env.LIBCAFFEINE_VERSION }}-windows.7z
-          7z x libcaffeine-v${{ env.LIBCAFFEINE_VERSION }}-windows.7z -o"${{ github.workspace }}/cmbuild/libcaffeine-v${{ env.LIBCAFFEINE_VERSION }}-windows"
+          7z x libcaffeine-v${{ env.LIBCAFFEINE_VERSION }}-windows.7z -o"${{ github.workspace }}/cmbuild"
       - name: 'Configure'
         run: |
           mkdir ./build
@@ -680,7 +680,7 @@ jobs:
       - name: 'Installing prerequisites: Libcaffeine'
         run: |
           curl -kLO https://github.com/caffeinetv/libcaffeine/releases/download/v${{ env.LIBCAFFEINE_VERSION }}/libcaffeine-v${{ env.LIBCAFFEINE_VERSION }}-windows.7z
-          7z x libcaffeine-v${{ env.LIBCAFFEINE_VERSION }}-windows.7z -o"${{ github.workspace }}/cmbuild/libcaffeine-v${{ env.LIBCAFFEINE_VERSION }}-windows"
+          7z x libcaffeine-v${{ env.LIBCAFFEINE_VERSION }}-windows.7z -o"${{ github.workspace }}/cmbuild"
       - name: 'Configure'
         run: |
           mkdir ./build

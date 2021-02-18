@@ -145,8 +145,10 @@ static int caffeine_to_obs_error(caff_Result error)
 	case caff_ResultFailure:
 	case caff_ResultBroadcastFailed:
 		return OBS_OUTPUT_CONNECT_FAILED;
-	case caff_ResultDisconnected:
+	case caff_ResultInternetDisconnected:
 		return OBS_OUTPUT_DISCONNECTED;
+	case caff_ResultCaffeineUnreachable:
+		return OBS_OUTPUT_CONNECT_FAILED;
 	case caff_ResultTakeover:
 	default:
 		return OBS_OUTPUT_ERROR;
@@ -323,6 +325,13 @@ static bool caffeine_start(void *data)
 	case caff_ResultOldVersion:
 		set_error(output, "%s", obs_module_text("ErrorOldVersion"));
 		return false;
+	case caff_ResultFailure:
+		if (caff_checkInternetConnection() ==
+		    caff_ResultInternetDisconnected) {
+			set_error(output, "%s",
+				  obs_module_text("ErrorInternetDisconnected"));
+			return false;
+		}
 	default:
 		log_warn("Failed to complete Caffeine version check");
 	}
@@ -516,9 +525,15 @@ static void caffeine_stream_failed(void *data, caff_Result error)
 	struct caffeine_output *context = data;
 
 	if (!obs_output_get_last_error(context->output)) {
-		set_error(context->output, "%s: [%d] %s",
-			  obs_module_text("ErrorStartStream"), error,
-			  caff_resultString(error));
+		if (caff_checkInternetConnection() ==
+		    caff_ResultInternetDisconnected) {
+			set_error(context->output, "%s",
+				  obs_module_text("ErrorInternetDisconnected"));
+		} else {
+			set_error(context->output, "%s: [%d] %s",
+				  obs_module_text("ErrorStartStream"), error,
+				  caff_resultString(error));
+		}
 	}
 
 	if (context->is_online) {
