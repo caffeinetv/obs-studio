@@ -15,7 +15,7 @@ on:
 env:
   CEF_BUILD_VERSION: '3770'
   CEF_VERSION: '75.1.16+g16a67c4+chromium-75.0.3770.100'
-  LIBCAFFEINE_VERSION: '0.6.1'
+  LIBCAFFEINE_VERSION: '0.6.3'
 
 jobs:
   macos64:
@@ -529,7 +529,7 @@ jobs:
       - name: 'Installing prerequisites: Libcaffeine'
         run: |
           curl -kLO https://github.com/caffeinetv/libcaffeine/releases/download/v${{ env.LIBCAFFEINE_VERSION }}/libcaffeine-v${{ env.LIBCAFFEINE_VERSION }}-windows.7z
-          7z x libcaffeine-v${{ env.LIBCAFFEINE_VERSION }}-windows.7z -o"${{ github.workspace }}/cmbuild/libcaffeine-v${{ env.LIBCAFFEINE_VERSION }}-windows"
+          7z x libcaffeine-v${{ env.LIBCAFFEINE_VERSION }}-windows.7z -o"${{ github.workspace }}/cmbuild"
       - name: 'Configure'
         run: |
           mkdir ./build
@@ -645,7 +645,7 @@ jobs:
       - name: 'Installing prerequisites: Libcaffeine'
         run: |
           curl -kLO https://github.com/caffeinetv/libcaffeine/releases/download/v${{ env.LIBCAFFEINE_VERSION }}/libcaffeine-v${{ env.LIBCAFFEINE_VERSION }}-windows.7z
-          7z x libcaffeine-v${{ env.LIBCAFFEINE_VERSION }}-windows.7z -o"${{ github.workspace }}/cmbuild/libcaffeine-v${{ env.LIBCAFFEINE_VERSION }}-windows"
+          7z x libcaffeine-v${{ env.LIBCAFFEINE_VERSION }}-windows.7z -o"${{ github.workspace }}/cmbuild"
       - name: 'Configure'
         run: |
           mkdir ./build
