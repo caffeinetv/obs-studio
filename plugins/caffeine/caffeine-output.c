@@ -88,6 +88,8 @@ struct caffeine_output {
 	bool is_slow_connection;
 	caffeine_stopwatch_t slow_connection_stopwatch;
 
+	int test_frame_drop_percent;
+
 #ifdef USE_SAMPLE_LOG
 	caffeine_stopwatch_t sample_stopwatch;
 	uint64_t raw_video_left_func_timestamp_ns;
@@ -325,8 +327,24 @@ static bool caffeine_start(void *data)
 	if (!caffeine_authenticate(context))
 		return false;
 
-	context->is_slow_connection =
-		(NULL == getenv("CAFFEINE_SLOW_CONNECTION")) ? 0 : 1;
+	context->is_slow_connection = false;
+	const char *caffeine_slow_connection =
+		getenv("CAFFEINE_SLOW_CONNECTION");
+	if (NULL != caffeine_slow_connection) {
+		context->is_slow_connection =
+			(1 == min(max(0, atoi(caffeine_slow_connection)), 1));
+	}
+
+	context->test_frame_drop_percent = 0;
+
+	const char *test_frame_drop_percent = getenv("CAFFEINE_COBS_TEST_FRAME_DROP_PERCENT");
+	if (NULL != test_frame_drop_percent) {
+		context->test_frame_drop_percent =
+			min(max(0, atoi(test_frame_drop_percent)), 99);
+	}
+	if (context->test_frame_drop_percent > 0) {
+		srand(max(0, (os_gettime_ns() % INT32_MAX) - 1));
+	}
 
 	caffeine_stopwatch_init(&context->slow_connection_stopwatch);
 	if (context->is_slow_connection) {
@@ -521,6 +539,7 @@ static void caffeine_raw_video(void *data, struct video_data *frame)
 	const char *reason_none = "";
 	const char *reason_slow_connection = "connection throttle";
 	const char *reason_av_desync = "av desync";
+	const char *reason_test_drop_frame_percent = "test frame drop percent";
 	const char *send_frame_reason = reason_none;
 
 	bool send_frame = true;
@@ -553,6 +572,13 @@ static void caffeine_raw_video(void *data, struct video_data *frame)
 		} else if (frame->timestamp < context->timestamp_window_neg) {
 			send_frame_reason = reason_av_desync;
 			send_frame = false;
+		}
+	}
+
+	if (send_frame && (context->test_frame_drop_percent > 0)) {
+		send_frame = (rand() % 100) > context->test_frame_drop_percent;
+		if (!send_frame) {
+			send_frame_reason = reason_test_drop_frame_percent;
 		}
 	}
 
