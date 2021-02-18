@@ -11,12 +11,16 @@ endif()
 
 set(caffeine_HEADERS
 	caffeine-foreground-process.h
-	caffeine-settings.h)
+	caffeine-settings.h
+	caffeine-sample-logger.h
+	caffeine-stopwatch.h)
 
 set(caffeine_SOURCES
 	caffeine-foreground-process.c
 	caffeine-module.c
-	caffeine-output.c)
+	caffeine-output.c
+	caffeine-sample-logger.c
+	caffeine-stopwatch.c)
 
 add_library(caffeine MODULE
 	${caffeine_HEADERS}
