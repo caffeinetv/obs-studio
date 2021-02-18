@@ -286,22 +286,19 @@ static bool caffeine_start(void *data)
 
 	obs_output_set_media(output, obs_get_video(), obs_get_audio());
 
-	switch (caff_checkInternetConnection()) {
-	case caff_ResultSuccess:
-		break;
-	case caff_ResultInternetDisconnected:
-		set_error(output, "%s",
-			  obs_module_text("ErrorInternetDisconnected"));
-		return false;
-	default:
-		log_warn("Failed to check internet connection");
-	}
 	switch (caff_checkVersion()) {
 	case caff_ResultSuccess:
 		break;
 	case caff_ResultOldVersion:
 		set_error(output, "%s", obs_module_text("ErrorOldVersion"));
 		return false;
+	case caff_ResultFailure:
+		if (caff_checkInternetConnection() ==
+		    caff_ResulInternetDisconnected) {
+			set_error(output, "%s",
+				  obs_module_text("ErrorInternetDisconnected"));
+			return false;
+		}
 	default:
 		log_warn("Failed to complete Caffeine version check");
 	}

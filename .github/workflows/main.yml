@@ -15,7 +15,7 @@ on:
 env:
   CEF_BUILD_VERSION: '3770'
   CEF_VERSION: '75.1.16+g16a67c4+chromium-75.0.3770.100'
-  LIBCAFFEINE_VERSION: '0.6.1'
+  LIBCAFFEINE_VERSION: '0.6.3'
 
 jobs:
   macos64:
