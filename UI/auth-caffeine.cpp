@@ -244,6 +244,10 @@ void CaffeineAuth::TryAuth(Ui::CaffeineSignInDialog *ui, QDialog *dialog,
 		ui->messageLabel->setText(
 			Str("Caffeine.Auth.EmailVerificationRequired"));
 		return;
+	case caff_ResultInternetDisconnected:
+		ui->messageLabel->setText(
+			Str("Caffeine.InternetDisconnected.Text"));
+		return;
 	case caff_ResultFailure:
 	default:
 		ui->messageLabel->setText(Str("Caffeine.Auth.SigninFailed"));
