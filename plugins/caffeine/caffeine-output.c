@@ -46,6 +46,9 @@ This causes a little bit of macro salsa, but we can remove it later */
 		dstr_free(&message);                                \
 	} while (false)
 
+#define caff_max(a, b) (((a) > (b)) ? (a) : (b))
+#define caff_min(a, b) (((a) < (b)) ? (a) : (b))
+
 #define CAFF_AUDIO_FORMAT AUDIO_FORMAT_16BIT
 #define CAFF_AUDIO_FORMAT_TYPE int16_t
 #define CAFF_AUDIO_LAYOUT SPEAKERS_STEREO
@@ -332,7 +335,7 @@ static bool caffeine_start(void *data)
 		getenv("CAFFEINE_SLOW_CONNECTION");
 	if (NULL != caffeine_slow_connection) {
 		context->is_slow_connection =
-			(1 == min(max(0, atoi(caffeine_slow_connection)), 1));
+			(1 == caff_min(caff_max(0, atoi(caffeine_slow_connection)), 1));
 	}
 
 	context->test_frame_drop_percent = 0;
@@ -341,10 +344,10 @@ static bool caffeine_start(void *data)
 		getenv("CAFFEINE_COBS_TEST_FRAME_DROP_PERCENT");
 	if (NULL != test_frame_drop_percent) {
 		context->test_frame_drop_percent =
-			min(max(0, atoi(test_frame_drop_percent)), 99);
+			caff_min(caff_max(0, atoi(test_frame_drop_percent)), 99);
 	}
 	if (context->test_frame_drop_percent > 0) {
-		srand(max(0, (os_gettime_ns() % INT32_MAX) - 1));
+		srand(caff_max(0, (os_gettime_ns() % INT32_MAX) - 1));
 	}
 
 	caffeine_stopwatch_init(&context->slow_connection_stopwatch);
