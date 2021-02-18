@@ -10,10 +10,21 @@
 
 #include "caffeine-foreground-process.h"
 #include "caffeine-settings.h"
+#include "caffeine-stopwatch.h"
+#include "caffeine-sample-logger.h"
 
-/* Uncomment this to log each call to raw_audio/video
-#define TRACE_FRAMES
-/**/
+/* Uncomment this to log each call to raw_audio/video */
+
+//#define TRACE_FRAMES
+
+/* Uncomment these lines and change path to use the sample log
+This is a simple debug tool, so I didn't add code to auto-create directories, etc
+So you'll need to make sure the directory path is available before use.
+This causes a little bit of macro salsa, but we can remove it later */
+
+//#define USE_SAMPLE_LOG
+//#define VIDEO_SAMPLE_LOG_FILE ("C:\\Users\\jond\\Desktop\\obs_logs\\caffeine_raw_video_samples_log.csv")
+//#define AUDIO_SAMPLE_LOG_FILE ("C:\\Users\\jond\\Desktop\\obs_logs\\caffeine_raw_audio_samples_log.csv")
 
 #define do_log(level, format, ...) \
 	blog(level, "[caffeine output] " format, ##__VA_ARGS__)
@@ -35,6 +46,9 @@
 		dstr_free(&message);                                \
 	} while (false)
 
+#define caff_max(a, b) (((a) > (b)) ? (a) : (b))
+#define caff_min(a, b) (((a) < (b)) ? (a) : (b))
+
 #define CAFF_AUDIO_FORMAT AUDIO_FORMAT_16BIT
 #define CAFF_AUDIO_FORMAT_TYPE int16_t
 #define CAFF_AUDIO_LAYOUT SPEAKERS_STEREO
@@ -43,6 +57,8 @@
 #define NANOSECONDS 1000000000ull
 
 static int const enforced_height = 720;
+static int const slow_connection_wait_ms = 66;
+static uint64_t const av_sync_tolerance_window_ms = 105UL;
 
 struct caffeine_audio {
 	struct audio_data *frames;
@@ -54,6 +70,10 @@ struct caffeine_output {
 	caff_InstanceHandle instance;
 	struct obs_video_info video_info;
 	uint64_t start_timestamp;
+	uint64_t timestamp_window_pos;
+	uint64_t timestamp_window_neg;
+	uint64_t video_last_timestamp;
+	uint64_t audio_last_timestamp;
 	size_t audio_planes;
 	size_t audio_size;
 
@@ -67,6 +87,19 @@ struct caffeine_output {
 	pthread_mutex_t audio_lock;
 	pthread_cond_t audio_cond;
 	bool audio_stop;
+
+	bool is_slow_connection;
+	caffeine_stopwatch_t slow_connection_stopwatch;
+
+	int test_frame_drop_percent;
+
+#ifdef USE_SAMPLE_LOG
+	caffeine_stopwatch_t sample_stopwatch;
+	uint64_t raw_video_left_func_timestamp_ns;
+	uint64_t raw_audio_left_func_timestamp_ns;
+	caffeine_sample_logger_t raw_video_sample_logger;
+	caffeine_sample_logger_t raw_audio_sample_logger;
+#endif
 };
 
 static void audio_data_copy(struct audio_data *left, struct audio_data *right)
@@ -297,6 +330,44 @@ static bool caffeine_start(void *data)
 	if (!caffeine_authenticate(context))
 		return false;
 
+	context->is_slow_connection = false;
+	const char *caffeine_slow_connection =
+		getenv("CAFFEINE_SLOW_CONNECTION");
+	if (NULL != caffeine_slow_connection) {
+		context->is_slow_connection =
+			(1 ==
+			 caff_min(caff_max(0, atoi(caffeine_slow_connection)),
+				  1));
+	}
+
+	context->test_frame_drop_percent = 0;
+
+	const char *test_frame_drop_percent =
+		getenv("CAFFEINE_COBS_TEST_FRAME_DROP_PERCENT");
+	if (NULL != test_frame_drop_percent) {
+		context->test_frame_drop_percent = caff_min(
+			caff_max(0, atoi(test_frame_drop_percent)), 99);
+	}
+	if (context->test_frame_drop_percent > 0) {
+		srand(caff_max(0, (os_gettime_ns() % INT32_MAX) - 1));
+	}
+
+	caffeine_stopwatch_init(&context->slow_connection_stopwatch);
+	if (context->is_slow_connection) {
+		caffeine_stopwatch_start(&context->slow_connection_stopwatch);
+	}
+
+#ifdef USE_SAMPLE_LOG
+	context->raw_video_left_func_timestamp_ns = 0UL;
+	context->raw_audio_left_func_timestamp_ns = 0UL;
+	caffeine_stopwatch_init(&context->sample_stopwatch);
+	caffeine_stopwatch_start(&context->sample_stopwatch);
+	caffeine_sample_logger_init(&context->raw_audio_sample_logger,
+				    AUDIO_SAMPLE_LOG_FILE);
+	caffeine_sample_logger_init(&context->raw_video_sample_logger,
+				    VIDEO_SAMPLE_LOG_FILE);
+#endif
+
 	if (!obs_get_video_info(&context->video_info)) {
 		set_error(output, "Failed to get video info");
 		return false;
@@ -463,7 +534,59 @@ static void caffeine_raw_video(void *data, struct video_data *frame)
 #ifdef TRACE_FRAMES
 	trace();
 #endif
+
 	struct caffeine_output *context = data;
+
+#ifdef USE_SAMPLE_LOG
+	uint64_t func_called_timestamp_ns =
+		caffeine_stopwatch_get_elapsed_ns(&context->sample_stopwatch);
+#endif
+
+	const char *reason_none = "";
+	const char *reason_slow_connection = "connection throttle";
+	const char *reason_av_desync = "av desync";
+	const char *reason_test_drop_frame_percent = "test frame drop percent";
+	const char *send_frame_reason = reason_none;
+
+	bool send_frame = true;
+	if (context->is_slow_connection) {
+		uint64_t slow_connection_ms = caffeine_stopwatch_get_elapsed_ms(
+			&context->slow_connection_stopwatch);
+		if (slow_connection_ms < slow_connection_wait_ms) {
+			send_frame_reason = reason_slow_connection;
+			send_frame = false;
+		} else {
+			caffeine_stopwatch_reset(
+				&context->slow_connection_stopwatch);
+		}
+	}
+
+	if (!context->start_timestamp)
+		context->start_timestamp = frame->timestamp;
+
+	uint64_t last_pair_timestamp_ns = context->audio_last_timestamp;
+	context->video_last_timestamp = frame->timestamp;
+
+	bool should_stall = false;
+	uint64_t timestamp_window_pos = context->timestamp_window_pos;
+	uint64_t timestamp_window_neg = context->timestamp_window_neg;
+	if ((timestamp_window_pos > 0) && (timestamp_window_neg > 0)) {
+		if (frame->timestamp > context->timestamp_window_pos) {
+			send_frame_reason = reason_av_desync;
+			send_frame = false;
+			should_stall = true;
+		} else if (frame->timestamp < context->timestamp_window_neg) {
+			send_frame_reason = reason_av_desync;
+			send_frame = false;
+		}
+	}
+
+	if (send_frame && (context->test_frame_drop_percent > 0)) {
+		send_frame = (rand() % 100) > context->test_frame_drop_percent;
+		if (!send_frame) {
+			send_frame_reason = reason_test_drop_frame_percent;
+		}
+	}
 
 	uint32_t width = context->video_info.output_width;
 	uint32_t height = context->video_info.output_height;
@@ -472,11 +595,29 @@ static void caffeine_raw_video(void *data, struct video_data *frame)
 		obs_to_caffeine_format(context->video_info.output_format);
 	int64_t timestampMicros = frame->timestamp / 1000;
 
-	if (!context->start_timestamp)
-		context->start_timestamp = frame->timestamp;
+	if (send_frame) {
+		caff_sendVideo(context->instance, format, frame->data[0],
+			       total_bytes, width, height, timestampMicros);
+	}
 
-	caff_sendVideo(context->instance, format, frame->data[0], total_bytes,
-		       width, height, timestampMicros);
+#ifdef USE_SAMPLE_LOG
+	uint64_t func_complete_timestamp_ns =
+		caffeine_stopwatch_get_elapsed_ns(&context->sample_stopwatch);
+	uint64_t func_time_ns =
+		func_complete_timestamp_ns - func_called_timestamp_ns;
+	uint64_t obs_app_time_ns = func_called_timestamp_ns -
+				   context->raw_video_left_func_timestamp_ns;
+	caffeine_sample_logger_log_sample(
+		&context->raw_video_sample_logger, send_frame,
+		send_frame_reason, func_called_timestamp_ns, frame->timestamp,
+		last_pair_timestamp_ns, func_time_ns, obs_app_time_ns);
+	context->raw_video_left_func_timestamp_ns =
+		caffeine_stopwatch_get_elapsed_ns(&context->sample_stopwatch);
+#endif
+
+	if (should_stall) { // +105ms ahead. let's stall for 84ms since audio samples are coming in at 21.333 average
+		os_sleep_ms(84);
+	}
 }
 
 static void caffeine_raw_audio(void *data, struct audio_data *frames)
@@ -485,6 +626,11 @@ static void caffeine_raw_audio(void *data, struct audio_data *frames)
 	trace();
 #endif
 	struct caffeine_output *context = data;
+
+#ifdef USE_SAMPLE_LOG
+	uint64_t func_called_timestamp_ns =
+		caffeine_stopwatch_get_elapsed_ns(&context->sample_stopwatch);
+#endif
 
 	// Ensure that everything is initialized and still available.
 	if (context->audio_stop)
@@ -499,6 +645,18 @@ static void caffeine_raw_audio(void *data, struct audio_data *frames)
 	if (!prepare_audio(context, frames, &in)) {
 		return;
 	}
+
+	uint64_t last_pair_timestamp_ns = context->video_last_timestamp;
+
+	uint64_t duration = ((uint64_t)frames->frames) * NANOSECONDS /
+			    CAFF_AUDIO_SAMPLERATE;
+	uint64_t end_ts = (frames->timestamp + duration);
+	uint64_t center_samples_ts = (frames->timestamp + end_ts) / 2;
+	context->audio_last_timestamp = center_samples_ts;
+
+	const uint64_t timestamp_adj = av_sync_tolerance_window_ms * 1000000UL;
+	context->timestamp_window_pos = center_samples_ts + timestamp_adj;
+	context->timestamp_window_neg = center_samples_ts - timestamp_adj;
 
 	// Create a copy of the audio data for queuing.
 	// ToDo: Can this be optimized to use circlebuf for data?
@@ -520,6 +678,22 @@ static void caffeine_raw_audio(void *data, struct audio_data *frames)
 	}
 	pthread_cond_signal(&context->audio_cond);
 	pthread_mutex_unlock(&context->audio_lock);
+
+#ifdef USE_SAMPLE_LOG
+	uint64_t func_complete_timestamp_ns =
+		caffeine_stopwatch_get_elapsed_ns(&context->sample_stopwatch);
+	uint64_t func_time_ns =
+		func_complete_timestamp_ns - func_called_timestamp_ns;
+	uint64_t obs_app_time_ns = func_called_timestamp_ns -
+				   context->raw_audio_left_func_timestamp_ns;
+	caffeine_sample_logger_log_sample(&context->raw_audio_sample_logger,
+					  true, "", func_called_timestamp_ns,
+					  center_samples_ts,
+					  last_pair_timestamp_ns, func_time_ns,
+					  obs_app_time_ns);
+	context->raw_audio_left_func_timestamp_ns =
+		caffeine_stopwatch_get_elapsed_ns(&context->sample_stopwatch);
+#endif
 }
 
 static void caffeine_stop(void *data, uint64_t ts)
