@@ -294,7 +294,7 @@ static bool caffeine_start(void *data)
 		return false;
 	case caff_ResultFailure:
 		if (caff_checkInternetConnection() ==
-		    caff_ResulInternetDisconnected) {
+		    caff_ResultInternetDisconnected) {
 			set_error(output, "%s",
 				  obs_module_text("ErrorInternetDisconnected"));
 			return false;
