@@ -335,7 +335,9 @@ static bool caffeine_start(void *data)
 		getenv("CAFFEINE_SLOW_CONNECTION");
 	if (NULL != caffeine_slow_connection) {
 		context->is_slow_connection =
-			(1 == caff_min(caff_max(0, atoi(caffeine_slow_connection)), 1));
+			(1 ==
+			 caff_min(caff_max(0, atoi(caffeine_slow_connection)),
+				  1));
 	}
 
 	context->test_frame_drop_percent = 0;
@@ -343,8 +345,8 @@ static bool caffeine_start(void *data)
 	const char *test_frame_drop_percent =
 		getenv("CAFFEINE_COBS_TEST_FRAME_DROP_PERCENT");
 	if (NULL != test_frame_drop_percent) {
-		context->test_frame_drop_percent =
-			caff_min(caff_max(0, atoi(test_frame_drop_percent)), 99);
+		context->test_frame_drop_percent = caff_min(
+			caff_max(0, atoi(test_frame_drop_percent)), 99);
 	}
 	if (context->test_frame_drop_percent > 0) {
 		srand(caff_max(0, (os_gettime_ns() % INT32_MAX) - 1));
