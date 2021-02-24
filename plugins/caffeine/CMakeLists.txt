@@ -13,14 +13,18 @@ set(caffeine_HEADERS
 	caffeine-foreground-process.h
 	caffeine-settings.h
 	caffeine-sample-logger.h
-	caffeine-stopwatch.h)
+	caffeine-stopwatch.h
+	caffeine-queue.h
+	caffeine-frames-tracker.h)
 
 set(caffeine_SOURCES
 	caffeine-foreground-process.c
 	caffeine-module.c
 	caffeine-output.c
 	caffeine-sample-logger.c
-	caffeine-stopwatch.c)
+	caffeine-stopwatch.c
+	caffeine-queue.c
+	caffeine-frames-tracker.c)
 
 add_library(caffeine MODULE
 	${caffeine_HEADERS}

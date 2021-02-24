@@ -12,19 +12,20 @@
 #include "caffeine-settings.h"
 #include "caffeine-stopwatch.h"
 #include "caffeine-sample-logger.h"
+#include "caffeine-frames-tracker.h"
 
 /* Uncomment this to log each call to raw_audio/video */
 
-//#define TRACE_FRAMES
+// #define TRACE_FRAMES
 
 /* Uncomment these lines and change path to use the sample log
 This is a simple debug tool, so I didn't add code to auto-create directories, etc
 So you'll need to make sure the directory path is available before use.
 This causes a little bit of macro salsa, but we can remove it later */
 
-//#define USE_SAMPLE_LOG
-//#define VIDEO_SAMPLE_LOG_FILE ("C:\\Users\\jond\\Desktop\\obs_logs\\caffeine_raw_video_samples_log.csv")
-//#define AUDIO_SAMPLE_LOG_FILE ("C:\\Users\\jond\\Desktop\\obs_logs\\caffeine_raw_audio_samples_log.csv")
+// #define USE_SAMPLE_LOG
+// #define VIDEO_SAMPLE_LOG_FILE ("C:\\Users\\Caffeine\\Desktop\\OBS_LOGS\\caffeine_raw_video_samples.csv")
+// #define AUDIO_SAMPLE_LOG_FILE ("C:\\Users\\Caffeine\\Desktop\\OBS_LOGS\\caffeine_raw_audio_samples.csv")
 
 #define do_log(level, format, ...) \
 	blog(level, "[caffeine output] " format, ##__VA_ARGS__)
@@ -59,6 +60,7 @@ This causes a little bit of macro salsa, but we can remove it later */
 static int const enforced_height = 720;
 static int const slow_connection_wait_ms = 66;
 static uint64_t const av_sync_tolerance_window_ms = 105UL;
+static int const threshold_frames_dropped_percent = 25;
 
 struct caffeine_audio {
 	struct audio_data *frames;
@@ -92,6 +94,8 @@ struct caffeine_output {
 	caffeine_stopwatch_t slow_connection_stopwatch;
 
 	int test_frame_drop_percent;
+	caffeine_frames_tracker dropped_frames_tracker;
+	caffeine_frames_tracker received_frames_tracker;
 
 #ifdef USE_SAMPLE_LOG
 	caffeine_stopwatch_t sample_stopwatch;
@@ -434,7 +438,8 @@ static bool caffeine_start(void *data)
 		set_error(output, "%s", caff_resultString(result));
 		return false;
 	}
-
+	caffeine_frames_tracker_init(&context->dropped_frames_tracker);
+	caffeine_frames_tracker_init(&context->received_frames_tracker);
 	return true;
 }
 
@@ -603,16 +608,42 @@ static void caffeine_raw_video(void *data, struct video_data *frame)
 		}
 	}
 
+	bool frames_drop_percent_decreased = false;
+
+	// Added received frames to queue
+	set_frames(&context->received_frames_tracker, frame->timestamp);
+
+	int recieved_frame_count = get_tracked_frames(
+		&context->received_frames_tracker, frame->timestamp);
+	int dropped_frame_count = get_tracked_frames(
+		&context->dropped_frames_tracker, frame->timestamp);
+	double percent_drop = 0.0;
+	if (recieved_frame_count) {
+		percent_drop = ((double)(dropped_frame_count) /
+				(double)recieved_frame_count) *
+			       100;
+	}
+	log_error("Percentagge droped %f", percent_drop);
+
+	if (percent_drop >= threshold_frames_dropped_percent) {
+		frames_drop_percent_decreased = true;
+	}
+
 	uint32_t width = context->video_info.output_width;
 	uint32_t height = context->video_info.output_height;
 	size_t total_bytes = frame->linesize[0] * height;
 	caff_VideoFormat format =
 		obs_to_caffeine_format(context->video_info.output_format);
 	int64_t timestampMicros = frame->timestamp / 1000;
-
 	if (send_frame) {
 		caff_sendVideo(context->instance, format, frame->data[0],
 			       total_bytes, width, height, timestampMicros);
+	} else {
+		set_frames(&context->dropped_frames_tracker, frame->timestamp);
+
+		if (frames_drop_percent_decreased) {
+			log_error("frame Droped popup message here");
+		}
 	}
 
 #ifdef USE_SAMPLE_LOG
