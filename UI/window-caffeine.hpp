@@ -21,7 +21,7 @@ private:
 	CaffeineAuth *owner;
 	std::shared_ptr<Ui::CaffeinePanel> ui;
 	caff_InstanceHandle caffeineInstance;
-	QTimer checkPluginTimer;
+	QTimer checkDroppedFramesTimer;
 
 	void registerDockWidget();
 
@@ -29,7 +29,8 @@ public slots:
 	void updateClicked(bool);
 
 	void viewOnWebClicked(bool);
-	void checkPlugin();
+	void checkDroppedFrames();
+
 public:
 	CaffeineInfoPanel(CaffeineAuth *owner, caff_InstanceHandle instance);
 	virtual ~CaffeineInfoPanel() override;

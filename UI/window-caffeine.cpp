@@ -1,4 +1,3 @@
-#define CAFFEINE_OUTPUT_STATE_IMPL
 #include "window-caffeine.hpp"
 #include "window-basic-main.hpp"
 
@@ -55,7 +54,7 @@ CaffeineInfoPanel::CaffeineInfoPanel(CaffeineAuth *owner,
 	  owner(owner),
 	  ui(new Ui::CaffeinePanel),
 	  caffeineInstance(instance),
-	  checkPluginTimer(this)
+	  checkDroppedFramesTimer(this)
 {
 	ui->setupUi(this);
 
@@ -77,10 +76,10 @@ CaffeineInfoPanel::CaffeineInfoPanel(CaffeineAuth *owner,
 	connect(ui->viewOnWebBtn, SIGNAL(clicked(bool)),
 		SLOT(viewOnWebClicked(bool)));
 
-	checkPluginTimer.setInterval(500);
-	connect(&checkPluginTimer, SIGNAL(timeout()), this,
-		SLOT(checkOutputState()));
-	checkPluginTimer.start();
+	checkDroppedFramesTimer.setInterval(500);
+	connect(&checkDroppedFramesTimer, SIGNAL(timeout()), this,
+		SLOT(checkDroppedFrames()));
+	checkDroppedFramesTimer.start();
 
 	this->registerDockWidget();
 }
@@ -88,7 +87,7 @@ CaffeineInfoPanel::CaffeineInfoPanel(CaffeineAuth *owner,
 CaffeineInfoPanel::~CaffeineInfoPanel()
 {
 	// Remove the Panel from OBS
-	checkPluginTimer.stop();
+	checkDroppedFramesTimer.stop();
 	OBSBasic::Get()->RemoveCaffeineDockWidget(this);
 }
 
@@ -127,6 +126,17 @@ void CaffeineInfoPanel::setRating(caff_Rating rating)
 		       static_cast<int64_t>(rating));
 }
 
-void CaffeineInfoPanel::checkPlugin() {
-	// TODO: Check OBS data variable and do something
+void CaffeineInfoPanel::checkDroppedFrames()
+{
+	// Check OBS bool data variable - frames_dropped_above_threshold data variable
+	obs_service_t *service = OBSBasic::Get()->GetService();
+	if (obs_data_get_bool(obs_service_get_settings(service),
+			      "frames_dropped_above_threshold")) {
+		ui->systemOverloadError->setText(
+			QTStr("Caffeine.SystemOverload.Text"));
+		ui->systemOverloadError->setStyleSheet(
+			QStringLiteral("QLabel{color: rgb(255, 0, 0);}"));
+	} else {
+		ui->systemOverloadError->setText(QTStr(""));
+	}
 }

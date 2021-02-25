@@ -114,8 +114,6 @@ struct caffeine_output {
 #endif
 };
 
-
-
 static void audio_data_copy(struct audio_data *left, struct audio_data *right)
 {
 	for (int idx = 0; idx < MAX_AV_PLANES; idx++) {
@@ -125,7 +123,8 @@ static void audio_data_copy(struct audio_data *left, struct audio_data *right)
 			size_t size = left->frames *
 				      sizeof(CAFF_AUDIO_FORMAT_TYPE) *
 				      CAFF_AUDIO_LAYOUT_MUL;
-			right->data[idx] = static_cast<uint8_t *>(bmalloc(size));
+			right->data[idx] =
+				static_cast<uint8_t *>(bmalloc(size));
 			memcpy(right->data[idx], left->data[idx], size);
 		}
 	}
@@ -268,7 +267,8 @@ static void *caffeine_create(obs_data_t *settings, obs_output_t *output)
 	UNUSED_PARAMETER(settings);
 
 	struct caffeine_output *context =
-		reinterpret_cast<struct caffeine_output *>(bzalloc(sizeof(struct caffeine_output)));
+		reinterpret_cast<struct caffeine_output *>(
+			bzalloc(sizeof(struct caffeine_output)));
 	context->output = output;
 
 	// Create mutex and condvar.
@@ -328,7 +328,8 @@ static bool caffeine_authenticate(struct caffeine_output *context)
 static bool caffeine_start(void *data)
 {
 	trace();
-	struct caffeine_output *context = reinterpret_cast<struct caffeine_output *>(data);
+	struct caffeine_output *context =
+		reinterpret_cast<struct caffeine_output *>(data);
 	obs_output_t *output = context->output;
 
 	obs_output_set_media(output, obs_get_video(), obs_get_audio());
@@ -462,7 +463,8 @@ static bool caffeine_start(void *data)
 static void enumerate_games(void *data, char const *process_name,
 			    char const *game_id, char const *game_name)
 {
-	struct caffeine_output *context = reinterpret_cast<struct caffeine_output *>(data);
+	struct caffeine_output *context =
+		reinterpret_cast<struct caffeine_output *>(data);
 	if (strcmp(process_name, context->foreground_process) == 0) {
 		log_debug("Detected game [%s]: %s", game_id, game_name);
 		bfree(context->game_id);
@@ -473,7 +475,8 @@ static void enumerate_games(void *data, char const *process_name,
 static void *monitor_thread(void *data)
 {
 	trace();
-	struct caffeine_output *context = reinterpret_cast<struct caffeine_output *>(data);
+	struct caffeine_output *context =
+		reinterpret_cast<struct caffeine_output *>(data);
 	const uint64_t millisPerNano = 1000000;
 	const uint64_t stop_interval = 100 /*ms*/ * millisPerNano;
 	const uint64_t game_interval = 5000 /*ms*/ * millisPerNano;
@@ -522,8 +525,10 @@ static void *monitor_thread(void *data)
 						      BROADCAST_TITLE_KEY));
 				caff_setRating(
 					context->instance,
-					static_cast<caff_Rating>(obs_data_get_int(data,
-							 BROADCAST_RATING_KEY)));
+					static_cast<caff_Rating>(
+						obs_data_get_int(
+							data,
+							BROADCAST_RATING_KEY)));
 				obs_data_release(data);
 			}
 		}
@@ -535,7 +540,8 @@ static void *monitor_thread(void *data)
 static void caffeine_stream_started(void *data)
 {
 	trace();
-	struct caffeine_output *context = reinterpret_cast<struct caffeine_output *>(data);
+	struct caffeine_output *context =
+		reinterpret_cast<struct caffeine_output *>(data);
 	context->is_online = true;
 	pthread_create(&context->monitor_thread, NULL, monitor_thread, context);
 	obs_output_begin_data_capture(context->output, 0);
@@ -543,7 +549,8 @@ static void caffeine_stream_started(void *data)
 
 static void caffeine_stream_failed(void *data, caff_Result error)
 {
-	struct caffeine_output *context = reinterpret_cast<struct caffeine_output *>(data);
+	struct caffeine_output *context =
+		reinterpret_cast<struct caffeine_output *>(data);
 
 	if (!obs_output_get_last_error(context->output)) {
 		if (caff_checkInternetConnection() ==
@@ -571,7 +578,8 @@ static void caffeine_raw_video(void *data, struct video_data *frame)
 	trace();
 #endif
 
-	struct caffeine_output *context = reinterpret_cast<struct caffeine_output *>(data);
+	struct caffeine_output *context =
+		reinterpret_cast<struct caffeine_output *>(data);
 
 #ifdef USE_SAMPLE_LOG
 	uint64_t func_called_timestamp_ns =
@@ -655,8 +663,7 @@ static void caffeine_raw_video(void *data, struct video_data *frame)
 		float frames_dropped = 0.0f;
 		float total_frames = 0.0f;
 		for (auto f = context->frames_list->begin();
-				   f != context->frames_list->end(); f++)
-		{
+		     f != context->frames_list->end(); f++) {
 			if (!f->sent) {
 				frames_dropped = frames_dropped + 1.0f;
 			}
@@ -666,9 +673,20 @@ static void caffeine_raw_video(void *data, struct video_data *frame)
 		uint32_t dropped_percent =
 			(uint32_t)((frames_dropped / total_frames) * 100.0f);
 
-		// TODO: if(dropped_percent > 25) { set OBS data variable for UI }
-
-		// 
+		// Check if dropped percent is above threshold value
+		if (dropped_percent >= threshold_frames_dropped_percent) {
+			obs_data_set_bool(
+				obs_service_get_settings(obs_output_get_service(
+					context->output)),
+				"frames_dropped_above_threshold", true);
+			log_error("percenr dropf %u", dropped_percent);
+		} else {
+			obs_data_set_bool(
+				obs_service_get_settings(obs_output_get_service(
+					context->output)),
+				"frames_dropped_above_threshold", false);
+		}
+		//
 		// check again in 1 second
 		context->next_check_dropped_frames =
 			frame->timestamp + caff_ms_to_ns(1000UL);
@@ -808,6 +826,9 @@ static void caffeine_stop(void *data, uint64_t ts)
 	obs_output_end_data_capture(output);
 
 	context->next_check_dropped_frames = 0;
+	obs_data_set_bool(obs_service_get_settings(
+				  obs_output_get_service(context->output)),
+			  "frames_dropped_above_threshold", false);
 	delete context->frames_list;
 	context->frames_list = nullptr;
 }
@@ -815,7 +836,8 @@ static void caffeine_stop(void *data, uint64_t ts)
 static void caffeine_destroy(void *data)
 {
 	trace();
-	struct caffeine_output *context = reinterpret_cast<struct caffeine_output *>(data);
+	struct caffeine_output *context =
+		reinterpret_cast<struct caffeine_output *>(data);
 	caff_freeInstance(&context->instance);
 
 	// Free mutex and condvar.
@@ -827,7 +849,8 @@ static void caffeine_destroy(void *data)
 
 static float caffeine_get_congestion(void *data)
 {
-	struct caffeine_output *context = reinterpret_cast<struct caffeine_output *>(data);
+	struct caffeine_output *context =
+		reinterpret_cast<struct caffeine_output *>(data);
 
 	caff_ConnectionQuality quality =
 		caff_getConnectionQuality(context->instance);
