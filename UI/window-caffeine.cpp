@@ -1,3 +1,4 @@
+#define CAFFEINE_OUTPUT_STATE_IMPL
 #include "window-caffeine.hpp"
 #include "window-basic-main.hpp"
 
@@ -53,7 +54,8 @@ CaffeineInfoPanel::CaffeineInfoPanel(CaffeineAuth *owner,
 	: OBSDock(OBSBasic::Get()),
 	  owner(owner),
 	  ui(new Ui::CaffeinePanel),
-	  caffeineInstance(instance)
+	  caffeineInstance(instance),
+	  checkPluginTimer(this)
 {
 	ui->setupUi(this);
 
@@ -75,12 +77,18 @@ CaffeineInfoPanel::CaffeineInfoPanel(CaffeineAuth *owner,
 	connect(ui->viewOnWebBtn, SIGNAL(clicked(bool)),
 		SLOT(viewOnWebClicked(bool)));
 
+	checkPluginTimer.setInterval(500);
+	connect(&checkPluginTimer, SIGNAL(timeout()), this,
+		SLOT(checkOutputState()));
+	checkPluginTimer.start();
+
 	this->registerDockWidget();
 }
 
 CaffeineInfoPanel::~CaffeineInfoPanel()
 {
 	// Remove the Panel from OBS
+	checkPluginTimer.stop();
 	OBSBasic::Get()->RemoveCaffeineDockWidget(this);
 }
 
@@ -117,4 +125,8 @@ void CaffeineInfoPanel::setRating(caff_Rating rating)
 	OBSBasic *main = OBSBasic::Get();
 	config_set_int(main->Config(), "Caffeine", "Rating",
 		       static_cast<int64_t>(rating));
+}
+
+void CaffeineInfoPanel::checkPlugin() {
+	// TODO: Check OBS data variable and do something
 }
