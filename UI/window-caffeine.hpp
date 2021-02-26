@@ -2,6 +2,8 @@
 
 #include <memory>
 #include <QTimer.h>
+#include <QMessageBox>
+#include <QCheckBox>
 
 #include "window-dock.hpp"
 #include "auth-caffeine.hpp"
@@ -22,6 +24,8 @@ private:
 	std::shared_ptr<Ui::CaffeinePanel> ui;
 	caff_InstanceHandle caffeineInstance;
 	QTimer checkDroppedFramesTimer;
+	QMessageBox showWarningMessageBox;
+	QCheckBox *checkBox;
 
 	void registerDockWidget();
 

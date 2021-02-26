@@ -76,10 +76,22 @@ CaffeineInfoPanel::CaffeineInfoPanel(CaffeineAuth *owner,
 	connect(ui->viewOnWebBtn, SIGNAL(clicked(bool)),
 		SLOT(viewOnWebClicked(bool)));
 
+	// Set timer
 	checkDroppedFramesTimer.setInterval(500);
 	connect(&checkDroppedFramesTimer, SIGNAL(timeout()), this,
 		SLOT(checkDroppedFrames()));
 	checkDroppedFramesTimer.start();
+
+	// Set up warning popup message
+	showWarningMessageBox.setWindowTitle(
+		QTStr("Caffeine.SystemOverload.Title"));
+	showWarningMessageBox.setText(QTStr("Caffeine.SystemOverload.Text"));
+	showWarningMessageBox.setModal(false);
+	showWarningMessageBox.setIcon(QMessageBox::Warning);
+	showWarningMessageBox.addButton(QMessageBox::Ok);
+	checkBox =
+		new QCheckBox(QTStr("Caffeine.SystemOverload.CheckBox.Text"));
+	showWarningMessageBox.setCheckBox(checkBox);
 
 	this->registerDockWidget();
 }
@@ -128,15 +140,12 @@ void CaffeineInfoPanel::setRating(caff_Rating rating)
 
 void CaffeineInfoPanel::checkDroppedFrames()
 {
-	// Check OBS bool data variable - frames_dropped_above_threshold data variable
 	obs_service_t *service = OBSBasic::Get()->GetService();
+	// Check OBS bool data variable - frames_dropped_above_threshold data variable
 	if (obs_data_get_bool(obs_service_get_settings(service),
 			      "frames_dropped_above_threshold")) {
-		ui->systemOverloadError->setText(
-			QTStr("Caffeine.SystemOverload.Text"));
-		ui->systemOverloadError->setStyleSheet(
-			QStringLiteral("QLabel{color: rgb(255, 0, 0);}"));
-	} else {
-		ui->systemOverloadError->setText(QTStr(""));
+		if (checkBox->checkState() == Qt::Unchecked) {
+			showWarningMessageBox.show();
+		}
 	}
 }
