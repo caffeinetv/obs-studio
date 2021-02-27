@@ -13,12 +13,14 @@ set(caffeine_HEADERS
 	caffeine-foreground-process.h
 	caffeine-settings.h
 	caffeine-sample-logger.h
-	caffeine-stopwatch.h)
+	caffeine-stopwatch.h
+	caffeine-tracked-frames.hpp)
 
 set(caffeine_SOURCES
 	caffeine-foreground-process.c
 	caffeine-module.c
 	caffeine-output.cpp
+	caffeine-tracked-frames.cpp
 	caffeine-sample-logger.c
 	caffeine-stopwatch.c)
 

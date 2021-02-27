@@ -12,8 +12,7 @@
 #include "caffeine-settings.h"
 #include "caffeine-stopwatch.h"
 #include "caffeine-sample-logger.h"
-
-#include <list>
+#include "caffeine-tracked-frames.hpp"
 
 /* Uncomment this to log each call to raw_audio/video */
 
@@ -62,16 +61,10 @@ This causes a little bit of macro salsa, but we can remove it later */
 static int const enforced_height = 720;
 static int const slow_connection_wait_ms = 66;
 static uint64_t const av_sync_tolerance_window_ms = 105UL;
-static int const threshold_frames_dropped_percent = 25;
 
 struct caffeine_audio {
 	struct audio_data *frames;
 	struct caffeine_audio *next;
-};
-
-struct caffeine_tracked_frame {
-	uint64_t timestamp;
-	bool sent;
 };
 
 struct caffeine_output {
@@ -102,8 +95,7 @@ struct caffeine_output {
 
 	int test_frame_drop_percent;
 
-	uint64_t next_check_dropped_frames;
-	std::list<struct caffeine_tracked_frame> *frames_list;
+	CaffeineFramesTracker *frames_tracker;
 
 #ifdef USE_SAMPLE_LOG
 	caffeine_stopwatch_t sample_stopwatch;
@@ -265,7 +257,6 @@ static void *caffeine_create(obs_data_t *settings, obs_output_t *output)
 {
 	trace();
 	UNUSED_PARAMETER(settings);
-
 	struct caffeine_output *context =
 		reinterpret_cast<struct caffeine_output *>(
 			bzalloc(sizeof(struct caffeine_output)));
@@ -381,12 +372,10 @@ static bool caffeine_start(void *data)
 		caffeine_stopwatch_start(&context->slow_connection_stopwatch);
 	}
 
-	context->next_check_dropped_frames = 0;
-	if (nullptr == context->frames_list) {
-		context->frames_list = new std::list<caffeine_tracked_frame>();
-	} else {
-		context->frames_list->clear();
+	if (nullptr == context->frames_tracker) {
+		context->frames_tracker = new CaffeineFramesTracker();
 	}
+	context->frames_tracker->caffeine_set_next_check_dropped_frames(0);
 
 #ifdef USE_SAMPLE_LOG
 	context->raw_video_left_func_timestamp_ns = 0UL;
@@ -607,8 +596,8 @@ static void caffeine_raw_video(void *data, struct video_data *frame)
 
 	if (!context->start_timestamp) {
 		context->start_timestamp = frame->timestamp;
-		context->next_check_dropped_frames =
-			context->start_timestamp + caff_ms_to_ns(10000UL);
+		context->frames_tracker->caffeine_set_next_check_dropped_frames(
+			context->start_timestamp + caff_ms_to_ns(10000UL));
 	}
 
 	uint64_t last_pair_timestamp_ns = context->audio_last_timestamp;
@@ -646,50 +635,18 @@ static void caffeine_raw_video(void *data, struct video_data *frame)
 			       total_bytes, width, height, timestampMicros);
 	}
 
-	context->frames_list->push_back({frame->timestamp, send_frame});
-	if (frame->timestamp >= context->next_check_dropped_frames) {
-		// lower bound is 10 seconds
-		uint64_t frame_time_lower_bound =
-			frame->timestamp - caff_ms_to_ns(10000UL);
-		// remove old frames
-		context->frames_list->remove_if(
-			[frame_time_lower_bound](
-				const caffeine_tracked_frame &list_frame)
-				-> bool {
-				return list_frame.timestamp <
-				       frame_time_lower_bound;
-			});
-		// calculate percent
-		float frames_dropped = 0.0f;
-		float total_frames = 0.0f;
-		for (auto f = context->frames_list->begin();
-		     f != context->frames_list->end(); f++) {
-			if (!f->sent) {
-				frames_dropped = frames_dropped + 1.0f;
-			}
-			total_frames = total_frames + 1.0f;
-		}
-		// set bool indicator
-		uint32_t dropped_percent =
-			(uint32_t)((frames_dropped / total_frames) * 100.0f);
-
-		// Check if dropped percent is above threshold value
-		if (dropped_percent >= threshold_frames_dropped_percent) {
-			obs_data_set_bool(
-				obs_service_get_settings(obs_output_get_service(
-					context->output)),
-				"frames_dropped_above_threshold", true);
-			log_error("percenr dropf %u", dropped_percent);
-		} else {
-			obs_data_set_bool(
-				obs_service_get_settings(obs_output_get_service(
-					context->output)),
-				"frames_dropped_above_threshold", false);
-		}
-		//
-		// check again in 1 second
-		context->next_check_dropped_frames =
-			frame->timestamp + caff_ms_to_ns(1000UL);
+	context->frames_tracker->caffeine_add_frame(frame->timestamp,
+						    send_frame);
+	if (context->frames_tracker->caffeine_did_frames_drop()) {
+		obs_data_set_bool(
+			obs_service_get_settings(
+				obs_output_get_service(context->output)),
+			"frames_dropped_above_threshold", true);
+	} else {
+		obs_data_set_bool(
+			obs_service_get_settings(
+				obs_output_get_service(context->output)),
+			"frames_dropped_above_threshold", false);
 	}
 
 #ifdef USE_SAMPLE_LOG
@@ -825,12 +782,10 @@ static void caffeine_stop(void *data, uint64_t ts)
 	caff_endBroadcast(context->instance);
 	obs_output_end_data_capture(output);
 
-	context->next_check_dropped_frames = 0;
+	context->frames_tracker->caffeine_set_next_check_dropped_frames(0);
 	obs_data_set_bool(obs_service_get_settings(
 				  obs_output_get_service(context->output)),
 			  "frames_dropped_above_threshold", false);
-	delete context->frames_list;
-	context->frames_list = nullptr;
 }
 
 static void caffeine_destroy(void *data)
