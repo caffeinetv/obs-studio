@@ -12,19 +12,20 @@
 #include "caffeine-settings.h"
 #include "caffeine-stopwatch.h"
 #include "caffeine-sample-logger.h"
+#include "caffeine-tracked-frames.hpp"
 
 /* Uncomment this to log each call to raw_audio/video */
 
-//#define TRACE_FRAMES
+// #define TRACE_FRAMES
 
 /* Uncomment these lines and change path to use the sample log
 This is a simple debug tool, so I didn't add code to auto-create directories, etc
 So you'll need to make sure the directory path is available before use.
 This causes a little bit of macro salsa, but we can remove it later */
 
-//#define USE_SAMPLE_LOG
-//#define VIDEO_SAMPLE_LOG_FILE ("C:\\Users\\jond\\Desktop\\obs_logs\\caffeine_raw_video_samples_log.csv")
-//#define AUDIO_SAMPLE_LOG_FILE ("C:\\Users\\jond\\Desktop\\obs_logs\\caffeine_raw_audio_samples_log.csv")
+// #define USE_SAMPLE_LOG
+// #define VIDEO_SAMPLE_LOG_FILE ("C:\\Users\\Caffeine\\Desktop\\OBS_LOGS\\caffeine_raw_video_samples.csv")
+// #define AUDIO_SAMPLE_LOG_FILE ("C:\\Users\\Caffeine\\Desktop\\OBS_LOGS\\caffeine_raw_audio_samples.csv")
 
 #define do_log(level, format, ...) \
 	blog(level, "[caffeine output] " format, ##__VA_ARGS__)
@@ -48,6 +49,7 @@ This causes a little bit of macro salsa, but we can remove it later */
 
 #define caff_max(a, b) (((a) > (b)) ? (a) : (b))
 #define caff_min(a, b) (((a) < (b)) ? (a) : (b))
+#define caff_ms_to_ns(ms) (ms * 1000000UL)
 
 #define CAFF_AUDIO_FORMAT AUDIO_FORMAT_16BIT
 #define CAFF_AUDIO_FORMAT_TYPE int16_t
@@ -93,6 +95,8 @@ struct caffeine_output {
 
 	int test_frame_drop_percent;
 
+	CaffeineFramesTracker *frames_tracker;
+
 #ifdef USE_SAMPLE_LOG
 	caffeine_stopwatch_t sample_stopwatch;
 	uint64_t raw_video_left_func_timestamp_ns;
@@ -111,7 +115,8 @@ static void audio_data_copy(struct audio_data *left, struct audio_data *right)
 			size_t size = left->frames *
 				      sizeof(CAFF_AUDIO_FORMAT_TYPE) *
 				      CAFF_AUDIO_LAYOUT_MUL;
-			right->data[idx] = bmalloc(size);
+			right->data[idx] =
+				static_cast<uint8_t *>(bmalloc(size));
 			memcpy(right->data[idx], left->data[idx], size);
 		}
 	}
@@ -252,9 +257,9 @@ static void *caffeine_create(obs_data_t *settings, obs_output_t *output)
 {
 	trace();
 	UNUSED_PARAMETER(settings);
-
 	struct caffeine_output *context =
-		bzalloc(sizeof(struct caffeine_output));
+		reinterpret_cast<struct caffeine_output *>(
+			bzalloc(sizeof(struct caffeine_output)));
 	context->output = output;
 
 	// Create mutex and condvar.
@@ -275,7 +280,7 @@ static void *caffeine_create(obs_data_t *settings, obs_output_t *output)
 fail:
 	pthread_mutex_destroy(&context->audio_lock);
 	pthread_cond_destroy(&context->audio_cond);
-	caff_freeInstance(context->instance);
+	caff_freeInstance(&context->instance);
 	bfree(context);
 	return NULL;
 }
@@ -314,7 +319,8 @@ static bool caffeine_authenticate(struct caffeine_output *context)
 static bool caffeine_start(void *data)
 {
 	trace();
-	struct caffeine_output *context = data;
+	struct caffeine_output *context =
+		reinterpret_cast<struct caffeine_output *>(data);
 	obs_output_t *output = context->output;
 
 	obs_output_set_media(output, obs_get_video(), obs_get_audio());
@@ -366,6 +372,11 @@ static bool caffeine_start(void *data)
 		caffeine_stopwatch_start(&context->slow_connection_stopwatch);
 	}
 
+	if (nullptr == context->frames_tracker) {
+		context->frames_tracker = new CaffeineFramesTracker();
+	}
+	context->frames_tracker->caffeine_set_next_check_dropped_frames(0);
+
 #ifdef USE_SAMPLE_LOG
 	context->raw_video_left_func_timestamp_ns = 0UL;
 	context->raw_audio_left_func_timestamp_ns = 0UL;
@@ -396,10 +407,11 @@ static bool caffeine_start(void *data)
 		return false;
 	}
 
-	struct audio_convert_info conversion = {.format = CAFF_AUDIO_FORMAT,
-						.speakers = CAFF_AUDIO_LAYOUT,
-						.samples_per_sec =
-							CAFF_AUDIO_SAMPLERATE};
+	struct audio_convert_info conversion = {};
+	conversion.format = CAFF_AUDIO_FORMAT;
+	conversion.speakers = CAFF_AUDIO_LAYOUT;
+	conversion.samples_per_sec = CAFF_AUDIO_SAMPLERATE;
+
 	obs_output_set_audio_conversion(output, &conversion);
 
 	context->audio_planes =
@@ -434,14 +446,14 @@ static bool caffeine_start(void *data)
 		set_error(output, "%s", caff_resultString(result));
 		return false;
 	}
-
 	return true;
 }
 
 static void enumerate_games(void *data, char const *process_name,
 			    char const *game_id, char const *game_name)
 {
-	struct caffeine_output *context = data;
+	struct caffeine_output *context =
+		reinterpret_cast<struct caffeine_output *>(data);
 	if (strcmp(process_name, context->foreground_process) == 0) {
 		log_debug("Detected game [%s]: %s", game_id, game_name);
 		bfree(context->game_id);
@@ -452,7 +464,8 @@ static void enumerate_games(void *data, char const *process_name,
 static void *monitor_thread(void *data)
 {
 	trace();
-	struct caffeine_output *context = data;
+	struct caffeine_output *context =
+		reinterpret_cast<struct caffeine_output *>(data);
 	const uint64_t millisPerNano = 1000000;
 	const uint64_t stop_interval = 100 /*ms*/ * millisPerNano;
 	const uint64_t game_interval = 5000 /*ms*/ * millisPerNano;
@@ -501,8 +514,10 @@ static void *monitor_thread(void *data)
 						      BROADCAST_TITLE_KEY));
 				caff_setRating(
 					context->instance,
-					obs_data_get_int(data,
-							 BROADCAST_RATING_KEY));
+					static_cast<caff_Rating>(
+						obs_data_get_int(
+							data,
+							BROADCAST_RATING_KEY)));
 				obs_data_release(data);
 			}
 		}
@@ -514,7 +529,8 @@ static void *monitor_thread(void *data)
 static void caffeine_stream_started(void *data)
 {
 	trace();
-	struct caffeine_output *context = data;
+	struct caffeine_output *context =
+		reinterpret_cast<struct caffeine_output *>(data);
 	context->is_online = true;
 	pthread_create(&context->monitor_thread, NULL, monitor_thread, context);
 	obs_output_begin_data_capture(context->output, 0);
@@ -522,7 +538,8 @@ static void caffeine_stream_started(void *data)
 
 static void caffeine_stream_failed(void *data, caff_Result error)
 {
-	struct caffeine_output *context = data;
+	struct caffeine_output *context =
+		reinterpret_cast<struct caffeine_output *>(data);
 
 	if (!obs_output_get_last_error(context->output)) {
 		if (caff_checkInternetConnection() ==
@@ -550,7 +567,8 @@ static void caffeine_raw_video(void *data, struct video_data *frame)
 	trace();
 #endif
 
-	struct caffeine_output *context = data;
+	struct caffeine_output *context =
+		reinterpret_cast<struct caffeine_output *>(data);
 
 #ifdef USE_SAMPLE_LOG
 	uint64_t func_called_timestamp_ns =
@@ -576,8 +594,11 @@ static void caffeine_raw_video(void *data, struct video_data *frame)
 		}
 	}
 
-	if (!context->start_timestamp)
+	if (!context->start_timestamp) {
 		context->start_timestamp = frame->timestamp;
+		context->frames_tracker->caffeine_set_next_check_dropped_frames(
+			context->start_timestamp + caff_ms_to_ns(10000UL));
+	}
 
 	uint64_t last_pair_timestamp_ns = context->audio_last_timestamp;
 	context->video_last_timestamp = frame->timestamp;
@@ -609,10 +630,23 @@ static void caffeine_raw_video(void *data, struct video_data *frame)
 	caff_VideoFormat format =
 		obs_to_caffeine_format(context->video_info.output_format);
 	int64_t timestampMicros = frame->timestamp / 1000;
-
 	if (send_frame) {
 		caff_sendVideo(context->instance, format, frame->data[0],
 			       total_bytes, width, height, timestampMicros);
+	}
+
+	context->frames_tracker->caffeine_add_frame(frame->timestamp,
+						    send_frame);
+	if (context->frames_tracker->caffeine_did_frames_drop()) {
+		obs_data_set_bool(
+			obs_service_get_settings(
+				obs_output_get_service(context->output)),
+			"frames_dropped_above_threshold", true);
+	} else {
+		obs_data_set_bool(
+			obs_service_get_settings(
+				obs_output_get_service(context->output)),
+			"frames_dropped_above_threshold", false);
 	}
 
 #ifdef USE_SAMPLE_LOG
@@ -640,7 +674,8 @@ static void caffeine_raw_audio(void *data, struct audio_data *frames)
 #ifdef TRACE_FRAMES
 	trace();
 #endif
-	struct caffeine_output *context = data;
+	struct caffeine_output *context =
+		reinterpret_cast<struct caffeine_output *>(data);
 
 #ifdef USE_SAMPLE_LOG
 	uint64_t func_called_timestamp_ns =
@@ -669,7 +704,8 @@ static void caffeine_raw_audio(void *data, struct audio_data *frames)
 	uint64_t center_samples_ts = (frames->timestamp + end_ts) / 2;
 	context->audio_last_timestamp = center_samples_ts;
 
-	const uint64_t timestamp_adj = av_sync_tolerance_window_ms * 1000000UL;
+	const uint64_t timestamp_adj =
+		caff_ms_to_ns(av_sync_tolerance_window_ms);
 	context->timestamp_window_pos = center_samples_ts + timestamp_adj;
 	context->timestamp_window_neg = center_samples_ts - timestamp_adj;
 
@@ -717,7 +753,8 @@ static void caffeine_stop(void *data, uint64_t ts)
 	/* TODO: do something with this? */
 	UNUSED_PARAMETER(ts);
 
-	struct caffeine_output *context = data;
+	struct caffeine_output *context =
+		reinterpret_cast<struct caffeine_output *>(data);
 	obs_output_t *output = context->output;
 
 	if (context->is_online) {
@@ -743,14 +780,19 @@ static void caffeine_stop(void *data, uint64_t ts)
 	}
 
 	caff_endBroadcast(context->instance);
-
 	obs_output_end_data_capture(output);
+
+	context->frames_tracker->caffeine_set_next_check_dropped_frames(0);
+	obs_data_set_bool(obs_service_get_settings(
+				  obs_output_get_service(context->output)),
+			  "frames_dropped_above_threshold", false);
 }
 
 static void caffeine_destroy(void *data)
 {
 	trace();
-	struct caffeine_output *context = data;
+	struct caffeine_output *context =
+		reinterpret_cast<struct caffeine_output *>(data);
 	caff_freeInstance(&context->instance);
 
 	// Free mutex and condvar.
@@ -762,7 +804,8 @@ static void caffeine_destroy(void *data)
 
 static float caffeine_get_congestion(void *data)
 {
-	struct caffeine_output *context = data;
+	struct caffeine_output *context =
+		reinterpret_cast<struct caffeine_output *>(data);
 
 	caff_ConnectionQuality quality =
 		caff_getConnectionQuality(context->instance);
@@ -777,20 +820,26 @@ static float caffeine_get_congestion(void *data)
 	}
 }
 
-struct obs_output_info caffeine_output_info = {
-	.id = "caffeine_output",
-	.flags = OBS_OUTPUT_AV | OBS_OUTPUT_SERVICE |
-		 OBS_OUTPUT_BANDWIDTH_TEST_DISABLED |
-		 OBS_OUTPUT_HARDWARE_ENCODING_DISABLED,
+extern "C" {
+struct obs_output_info get_caffeine_output_info()
+{
+	struct obs_output_info output_info = {};
+	memset(&output_info, 0, sizeof(obs_output_info));
+	output_info.id = "caffeine_output";
+	output_info.flags = OBS_OUTPUT_AV | OBS_OUTPUT_SERVICE |
+			    OBS_OUTPUT_BANDWIDTH_TEST_DISABLED |
+			    OBS_OUTPUT_HARDWARE_ENCODING_DISABLED;
 
-	.get_name = caffeine_get_name,
+	output_info.get_name = caffeine_get_name;
 
-	.create = caffeine_create,
-	.destroy = caffeine_destroy,
+	output_info.create = caffeine_create;
+	output_info.destroy = caffeine_destroy;
 
-	.start = caffeine_start,
-	.stop = caffeine_stop,
+	output_info.start = caffeine_start;
+	output_info.stop = caffeine_stop;
 
-	.raw_video = caffeine_raw_video,
-	.raw_audio = caffeine_raw_audio,
-};
+	output_info.raw_video = caffeine_raw_video;
+	output_info.raw_audio = caffeine_raw_audio;
+	return output_info;
+}
+}
