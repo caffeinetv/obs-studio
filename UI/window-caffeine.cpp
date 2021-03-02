@@ -53,7 +53,8 @@ CaffeineInfoPanel::CaffeineInfoPanel(CaffeineAuth *owner,
 	: OBSDock(OBSBasic::Get()),
 	  owner(owner),
 	  ui(new Ui::CaffeinePanel),
-	  caffeineInstance(instance)
+	  caffeineInstance(instance),
+	  checkDroppedFramesTimer(this)
 {
 	ui->setupUi(this);
 
@@ -75,12 +76,30 @@ CaffeineInfoPanel::CaffeineInfoPanel(CaffeineAuth *owner,
 	connect(ui->viewOnWebBtn, SIGNAL(clicked(bool)),
 		SLOT(viewOnWebClicked(bool)));
 
+	// Set timer
+	checkDroppedFramesTimer.setInterval(500);
+	connect(&checkDroppedFramesTimer, SIGNAL(timeout()), this,
+		SLOT(checkDroppedFrames()));
+	checkDroppedFramesTimer.start();
+
+	// Set up warning popup message
+	showWarningMessageBox.setWindowTitle(
+		QTStr("Caffeine.SystemOverload.Title"));
+	showWarningMessageBox.setText(QTStr("Caffeine.SystemOverload.Text"));
+	showWarningMessageBox.setModal(false);
+	showWarningMessageBox.setIcon(QMessageBox::Warning);
+	showWarningMessageBox.addButton(QMessageBox::Ok);
+	checkBox =
+		new QCheckBox(QTStr("Caffeine.SystemOverload.CheckBox.Text"));
+	showWarningMessageBox.setCheckBox(checkBox);
+
 	this->registerDockWidget();
 }
 
 CaffeineInfoPanel::~CaffeineInfoPanel()
 {
 	// Remove the Panel from OBS
+	checkDroppedFramesTimer.stop();
 	OBSBasic::Get()->RemoveCaffeineDockWidget(this);
 }
 
@@ -117,4 +136,16 @@ void CaffeineInfoPanel::setRating(caff_Rating rating)
 	OBSBasic *main = OBSBasic::Get();
 	config_set_int(main->Config(), "Caffeine", "Rating",
 		       static_cast<int64_t>(rating));
+}
+
+void CaffeineInfoPanel::checkDroppedFrames()
+{
+	obs_service_t *service = OBSBasic::Get()->GetService();
+	// Check OBS bool data variable - frames_dropped_above_threshold data variable
+	if (obs_data_get_bool(obs_service_get_settings(service),
+			      "frames_dropped_above_threshold")) {
+		if (checkBox->checkState() == Qt::Unchecked) {
+			showWarningMessageBox.show();
+		}
+	}
 }
