@@ -773,7 +773,6 @@ static void caffeine_stop(void *data, uint64_t ts)
 	caff_endBroadcast(context->instance);
 	obs_output_end_data_capture(output);
 
-	context->frames_tracker->caffeine_set_next_check_dropped_frames(0);
 	delete context->frames_tracker;
 	obs_data_set_bool(obs_service_get_settings(
 				  obs_output_get_service(context->output)),
