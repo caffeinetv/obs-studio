@@ -1,12 +1,13 @@
 #include "caffeine-tracked-frames.hpp"
+#include <util/base.h>
 
-#define caff_ms_to_ns(ms) (ms * 1000000UL)
-static int const threshold_frames_dropped_percent = 25;
+#define caff_ms_to_ns(ms) (ms * 1000000ULL)
+static uint32_t const threshold_frames_dropped_percent = 25;
 
-CaffeineFramesTracker::CaffeineFramesTracker()
+CaffeineFramesTracker::CaffeineFramesTracker(obs_data_t *data)
 	: frames_list(new std::list<caffeine_tracked_frame>()),
 	  next_check_dropped_frames(0),
-	  isFramesDropped(false)
+	  data(data)
 {
 }
 
@@ -18,21 +19,25 @@ CaffeineFramesTracker::~CaffeineFramesTracker()
 void CaffeineFramesTracker::caffeine_add_frame(uint64_t timestamp, bool sent)
 {
 	frames_list->push_back({timestamp, sent});
+	obs_data_set_bool(data, "frames_dropped_above_threshold", false);
 	if (timestamp >= next_check_dropped_frames) {
 		caffeine_remove_old_frames(timestamp);
 		if (caffeine_get_drop_percent() >=
 		    threshold_frames_dropped_percent) {
-			isFramesDropped = true;
+			obs_data_set_bool(
+				data, "frames_dropped_above_threshold", true);
 		} else {
-			isFramesDropped = false;
+			obs_data_set_bool(
+				data, "frames_dropped_above_threshold", false);
 		}
-		next_check_dropped_frames = timestamp + caff_ms_to_ns(1000UL);
+		// Next check in 1 second
+		next_check_dropped_frames = timestamp + caff_ms_to_ns(1000ULL);
 	}
 }
 
 void CaffeineFramesTracker::caffeine_remove_old_frames(uint64_t timestamp)
 {
-	uint64_t frame_time_lower_bound = timestamp - caff_ms_to_ns(10000UL);
+	uint64_t frame_time_lower_bound = timestamp - caff_ms_to_ns(10000ULL);
 	// remove old frames , Lower bound is 10 seconds
 	frames_list->remove_if(
 		[frame_time_lower_bound](
@@ -58,9 +63,4 @@ void CaffeineFramesTracker::caffeine_set_next_check_dropped_frames(
 	uint64_t next_check)
 {
 	next_check_dropped_frames = next_check;
-}
-
-bool CaffeineFramesTracker::caffeine_did_frames_drop()
-{
-	return isFramesDropped;
 }
