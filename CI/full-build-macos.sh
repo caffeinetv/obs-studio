@@ -22,7 +22,7 @@
 #
 # Environment Variables (optional):
 #   MACOS_DEPS_VERSION  : Pre-compiled macOS dependencies version
-#   CEF_BUILD_VERSION   : Chromium Embedded Framework version
+#   MACOS_CEF_BUILD_VERSION   : Chromium Embedded Framework version
 #   VLC_VERISON         : VLC version
 #   SPARKLE_VERSION     : Sparke Framework version
 #   BUILD_DIR           : Alternative directory to build OBS in
@@ -41,20 +41,22 @@ BUILD_DIR="${BUILD_DIR:-build}"
 BUILD_CONFIG=${BUILD_CONFIG:-RelWithDebInfo}
 CI_SCRIPTS="${CHECKOUT_DIR}/CI/scripts/macos"
 CI_WORKFLOW="${CHECKOUT_DIR}/.github/workflows/main.yml"
-CI_CEF_VERSION=$(cat ${CI_WORKFLOW} | sed -En "s/[ ]+CEF_BUILD_VERSION: '([0-9]+)'/\1/p")
+CI_MACOS_CEF_VERSION=$(cat ${CI_WORKFLOW} | sed -En "s/[ ]+MACOS_CEF_BUILD_VERSION: '([0-9]+)'/\1/p")
 CI_DEPS_VERSION=$(cat ${CI_WORKFLOW} | sed -En "s/[ ]+MACOS_DEPS_VERSION: '([0-9\-]+)'/\1/p")
 CI_VLC_VERSION=$(cat ${CI_WORKFLOW} | sed -En "s/[ ]+VLC_VERSION: '([0-9\.]+)'/\1/p")
 CI_SPARKLE_VERSION=$(cat ${CI_WORKFLOW} | sed -En "s/[ ]+SPARKLE_VERSION: '([0-9\.]+)'/\1/p")
 CI_QT_VERSION=$(cat ${CI_WORKFLOW} | sed -En "s/[ ]+QT_VERSION: '([0-9\.]+)'/\1/p" | head -1)
 CI_MIN_MACOS_VERSION=$(cat ${CI_WORKFLOW} | sed -En "s/[ ]+MIN_MACOS_VERSION: '([0-9\.]+)'/\1/p")
+CI_LIBCAFFEINE_VERSION=$(cat ${CI_WORKFLOW} | sed -En "s/[ ]+LIBCAFFEINE_VERSION: '([0-9\.]+)'/\1/p")
 NPROC="${NPROC:-$(sysctl -n hw.ncpu)}"
 
 BUILD_DEPS=(
-    "obs-deps ${MACOS_DEPS_VERSION:-${CI_DEPS_VERSION}}"
-    "qt-deps ${QT_VERSION:-${CI_QT_VERSION}} ${MACOS_DEPS_VERSION:-${CI_DEPS_VERSION}}"
-    "cef ${CEF_BUILD_VERSION:-${CI_CEF_VERSION}}"
+    "obs_deps ${MACOS_DEPS_VERSION:-${CI_DEPS_VERSION}}"
+    "qt_deps ${QT_VERSION:-${CI_QT_VERSION}} ${MACOS_DEPS_VERSION:-${CI_DEPS_VERSION}}"
+    "cef ${MACOS_CEF_BUILD_VERSION:-${CI_MACOS_CEF_VERSION}}"
     "vlc ${VLC_VERSION:-${CI_VLC_VERSION}}"
     "sparkle ${SPARKLE_VERSION:-${CI_SPARKLE_VERSION}}"
+    "libcaffeine ${LIBCAFFEINE_VERSION:-${CI_LIBCAFFEINE_VERSION}}"
 )
 
 if [ -n "${TERM-}" ]; then
@@ -165,7 +167,7 @@ check_ccache() {
     info "${CCACHE_STATUS}"
 }
 
-install_obs-deps() {
+install_obs_deps() {
     hr "Setting up pre-built macOS OBS dependencies v${1}"
     ensure_dir ${DEPS_BUILD_DIR}
     step "Download..."
@@ -174,7 +176,7 @@ install_obs-deps() {
     tar -xf ./macos-deps-${1}.tar.gz -C /tmp
 }
 
-install_qt-deps() {
+install_qt_deps() {
     hr "Setting up pre-built dependency QT v${1}"
     ensure_dir ${DEPS_BUILD_DIR}
     step "Download..."
@@ -208,6 +210,16 @@ install_sparkle() {
     fi
 }
 
+install_libcaffeine() {
+    hr "Setting up dependency libcaffeine v${1}"
+    ensure_dir ${DEPS_BUILD_DIR}
+    step "Download..."
+    ${CURLCMD} --progress-bar -L -C - -O https://github.com/caffeinetv/libcaffeine/releases/download/v${1}/libcaffeine-v${1}-macos.7z 
+    step "Unpack ..."
+    brew install p7zip
+    7za x libcaffeine-v${1}-macos.7z 
+}
+
 install_cef() {
     hr "Building dependency CEF v${1}"
     ensure_dir ${DEPS_BUILD_DIR}
@@ -218,7 +230,7 @@ install_cef() {
     cd ./cef_binary_${1}_macosx64
     step "Fix tests..."
     sed -i '.orig' '/add_subdirectory(tests\/ceftests)/d' ./CMakeLists.txt
-    sed -i '.orig' 's/"'$(test "${CEF_BUILD_VERSION:-${CI_CEF_VERSION}}" -le 3770 && echo "10.9" || echo "10.10")'"/"'${MIN_MACOS_VERSION:-${CI_MIN_MACOS_VERSION}}'"/' ./cmake/cef_variables.cmake
+    sed -i '.orig' 's/"'$(test "${MACOS_CEF_BUILD_VERSION:-${CI_MACOS_CEF_VERSION}}" -le 3770 && echo "10.9" || echo "10.10")'"/"'${MIN_MACOS_VERSION:-${CI_MIN_MACOS_VERSION}}'"/' ./cmake/cef_variables.cmake
     ensure_dir ./build
     step "Run CMAKE..."
     cmake \
@@ -277,11 +289,13 @@ configure_obs_build() {
         -DSWIGDIR="/tmp/obsdeps" \
         -DDepsPath="/tmp/obsdeps" \
         -DVLCPath="${DEPS_BUILD_DIR}/vlc-${VLC_VERSION:-${CI_VLC_VERSION}}" \
+        -DENABLE_VLC=ON \
         -DBUILD_BROWSER=ON \
-        -DBROWSER_LEGACY="$(test "${CEF_BUILD_VERSION:-${CI_CEF_VERSION}}" -le 3770 && echo "ON" || echo "OFF")" \
+        -DBROWSER_LEGACY="$(test "${MACOS_CEF_BUILD_VERSION:-${CI_MACOS_CEF_VERSION}}" -le 3770 && echo "ON" || echo "OFF")" \
         -DWITH_RTMPS=ON \
-        -DCEF_ROOT_DIR="${DEPS_BUILD_DIR}/cef_binary_${CEF_BUILD_VERSION:-${CI_CEF_VERSION}}_macosx64" \
+        -DCEF_ROOT_DIR="${DEPS_BUILD_DIR}/cef_binary_${MACOS_CEF_BUILD_VERSION:-${CI_MACOS_CEF_VERSION}}_macosx64" \
         -DCMAKE_BUILD_TYPE="${BUILD_CONFIG}" \
+        -DLIBCAFFEINE_DIR="${DEPS_BUILD_DIR}/libcaffeine-v${LIBCAFFEINE_VERSION:-${CI_LIBCAFFEINE_VERSION}}-macos" \
         ..
 
 }
@@ -329,7 +343,7 @@ bundle_dylibs() {
         ./OBS.app/Contents/PlugIns/text-freetype2.so
         ./OBS.app/Contents/PlugIns/obs-outputs.so
         )
-    if ! [ "${CEF_BUILD_VERSION:-${CI_CEF_VERSION}}" -le 3770 ]; then
+    if ! [ "${MACOS_CEF_BUILD_VERSION:-${CI_MACOS_CEF_VERSION}}" -le 3770 ]; then
         ${CI_SCRIPTS}/app/dylibbundler -cd -of -a ./OBS.app -q -f \
             -s ./OBS.app/Contents/MacOS \
             -s "${DEPS_BUILD_DIR}/sparkle/Sparkle.framework" \
@@ -371,7 +385,7 @@ install_frameworks() {
 
     hr "Adding Chromium Embedded Framework"
     step "Copy Framework..."
-    cp -R "${DEPS_BUILD_DIR}/cef_binary_${CEF_BUILD_VERSION:-${CI_CEF_VERSION}}_macosx64/Release/Chromium Embedded Framework.framework" ./OBS.app/Contents/Frameworks/
+    cp -R "${DEPS_BUILD_DIR}/cef_binary_${MACOS_CEF_BUILD_VERSION:-${CI_MACOS_CEF_VERSION}}_macosx64/Release/Chromium Embedded Framework.framework" ./OBS.app/Contents/Frameworks/
     chown -R $(whoami) ./OBS.app/Contents/Frameworks/
 }
 
@@ -395,7 +409,7 @@ prepare_macos_bundle() {
     cp rundir/${BUILD_CONFIG}/bin/obs ./OBS.app/Contents/MacOS
     cp rundir/${BUILD_CONFIG}/bin/obs-ffmpeg-mux ./OBS.app/Contents/MacOS
     cp rundir/${BUILD_CONFIG}/bin/libobsglad.0.dylib ./OBS.app/Contents/MacOS
-    if ! [ "${CEF_BUILD_VERSION:-${CI_CEF_VERSION}}" -le 3770 ]; then
+    if ! [ "${MACOS_CEF_BUILD_VERSION:-${CI_MACOS_CEF_VERSION}}" -le 3770 ]; then
         cp -R "rundir/${BUILD_CONFIG}/bin/OBS Helper.app" "./OBS.app/Contents/Frameworks/OBS Helper.app"
         cp -R "rundir/${BUILD_CONFIG}/bin/OBS Helper (GPU).app" "./OBS.app/Contents/Frameworks/OBS Helper (GPU).app"
         cp -R "rundir/${BUILD_CONFIG}/bin/OBS Helper (Plugin).app" "./OBS.app/Contents/Frameworks/OBS Helper (Plugin).app"
@@ -524,7 +538,7 @@ codesign_bundle() {
     codesign --force --options runtime --sign "${CODESIGN_IDENT}" "./OBS.app/Contents/Frameworks/Chromium Embedded Framework.framework/Libraries/libswiftshader_libEGL.dylib"
     codesign --force --options runtime --sign "${CODESIGN_IDENT}" "./OBS.app/Contents/Frameworks/Chromium Embedded Framework.framework/Libraries/libGLESv2.dylib"
     codesign --force --options runtime --sign "${CODESIGN_IDENT}" "./OBS.app/Contents/Frameworks/Chromium Embedded Framework.framework/Libraries/libswiftshader_libGLESv2.dylib"
-    if ! [ "${CEF_BUILD_VERSION:-${CI_CEF_VERSION}}" -le 3770 ]; then
+    if ! [ "${MACOS_CEF_BUILD_VERSION:-${CI_MACOS_CEF_VERSION}}" -le 3770 ]; then
         codesign --force --options runtime --sign "${CODESIGN_IDENT}" "./OBS.app/Contents/Frameworks/Chromium Embedded Framework.framework/Libraries/libvk_swiftshader.dylib"
     fi
 
@@ -540,7 +554,7 @@ codesign_bundle() {
     codesign --force --options runtime --entitlements "${CI_SCRIPTS}/app/entitlements.plist" --sign "${CODESIGN_IDENT}" --deep ./OBS.app
     echo -n "${COLOR_RESET}"
 
-    if ! [ "${CEF_BUILD_VERSION:-${CI_CEF_VERSION}}" -le 3770 ]; then
+    if ! [ "${MACOS_CEF_BUILD_VERSION:-${CI_MACOS_CEF_VERSION}}" -le 3770 ]; then
         step "Code-sign CEF helper apps..."
         echo -n "${COLOR_ORANGE}"
         codesign --force --options runtime --sign "${CODESIGN_IDENT}" --deep "./OBS.app/Contents/Frameworks/OBS Helper.app"
@@ -578,7 +592,7 @@ codesign_image() {
 }
 
 ## BUILD FROM SOURCE META FUNCTION ##
-full-build-macos() {
+full_build_macos() {
     if [ -n "${SKIP_BUILD}" ]; then step "Skipping full build"; return; fi
 
     if [ ! -n "${SKIP_DEPS}" ]; then
@@ -664,7 +678,7 @@ print_usage() {
     exit 0
 }
 
-obs-build-main() {
+obs_build_main() {
     ensure_dir ${CHECKOUT_DIR}
     check_macos_version
     step "Fetching OBS tags..."
@@ -701,7 +715,7 @@ obs-build-main() {
         esac
     done
 
-    full-build-macos
+    full_build_macos
     bundle_macos
     codesign_bundle
     package_macos
@@ -711,4 +725,4 @@ obs-build-main() {
     cleanup
 }
 
-obs-build-main $*
+obs_build_main $*
