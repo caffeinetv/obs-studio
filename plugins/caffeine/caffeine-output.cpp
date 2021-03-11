@@ -49,7 +49,7 @@ This causes a little bit of macro salsa, but we can remove it later */
 
 #define caff_max(a, b) (((a) > (b)) ? (a) : (b))
 #define caff_min(a, b) (((a) < (b)) ? (a) : (b))
-#define caff_ms_to_ns(ms) (ms * 1000000UL)
+#define caff_ms_to_ns(ms) (ms * 1000000ULL)
 
 #define CAFF_AUDIO_FORMAT AUDIO_FORMAT_16BIT
 #define CAFF_AUDIO_FORMAT_TYPE int16_t
@@ -373,7 +373,9 @@ static bool caffeine_start(void *data)
 	}
 
 	if (nullptr == context->frames_tracker) {
-		context->frames_tracker = new CaffeineFramesTracker();
+		context->frames_tracker =
+			new CaffeineFramesTracker(obs_service_get_settings(
+				obs_output_get_service(context->output)));
 	}
 	context->frames_tracker->caffeine_set_next_check_dropped_frames(0);
 
@@ -597,7 +599,7 @@ static void caffeine_raw_video(void *data, struct video_data *frame)
 	if (!context->start_timestamp) {
 		context->start_timestamp = frame->timestamp;
 		context->frames_tracker->caffeine_set_next_check_dropped_frames(
-			context->start_timestamp + caff_ms_to_ns(10000UL));
+			context->start_timestamp + caff_ms_to_ns(10000ULL));
 	}
 
 	uint64_t last_pair_timestamp_ns = context->audio_last_timestamp;
@@ -626,7 +628,7 @@ static void caffeine_raw_video(void *data, struct video_data *frame)
 
 	uint32_t width = context->video_info.output_width;
 	uint32_t height = context->video_info.output_height;
-	size_t total_bytes = frame->linesize[0] * height;
+	size_t total_bytes = (size_t)frame->linesize[0] * (size_t)height;
 	caff_VideoFormat format =
 		obs_to_caffeine_format(context->video_info.output_format);
 	int64_t timestampMicros = frame->timestamp / 1000;
@@ -637,17 +639,6 @@ static void caffeine_raw_video(void *data, struct video_data *frame)
 
 	context->frames_tracker->caffeine_add_frame(frame->timestamp,
 						    send_frame);
-	if (context->frames_tracker->caffeine_did_frames_drop()) {
-		obs_data_set_bool(
-			obs_service_get_settings(
-				obs_output_get_service(context->output)),
-			"frames_dropped_above_threshold", true);
-	} else {
-		obs_data_set_bool(
-			obs_service_get_settings(
-				obs_output_get_service(context->output)),
-			"frames_dropped_above_threshold", false);
-	}
 
 #ifdef USE_SAMPLE_LOG
 	uint64_t func_complete_timestamp_ns =
@@ -782,7 +773,7 @@ static void caffeine_stop(void *data, uint64_t ts)
 	caff_endBroadcast(context->instance);
 	obs_output_end_data_capture(output);
 
-	context->frames_tracker->caffeine_set_next_check_dropped_frames(0);
+	delete context->frames_tracker;
 	obs_data_set_bool(obs_service_get_settings(
 				  obs_output_get_service(context->output)),
 			  "frames_dropped_above_threshold", false);
