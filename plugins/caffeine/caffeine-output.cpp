@@ -37,6 +37,14 @@ This causes a little bit of macro salsa, but we can remove it later */
 
 #define trace() log_debug("%s", __func__)
 
+#define safe_delete(x)			\
+	do {				\
+		if (nullptr != x) {	\
+			delete x;	\
+			x = nullptr;	\
+		}			\
+	} while (0)
+
 #define set_error(output, fmt, ...)                                 \
 	do {                                                        \
 		struct dstr message;                                \
@@ -372,11 +380,11 @@ static bool caffeine_start(void *data)
 		caffeine_stopwatch_start(&context->slow_connection_stopwatch);
 	}
 
-	if (nullptr == context->frames_tracker) {
-		context->frames_tracker =
-			new CaffeineFramesTracker(obs_service_get_settings(
-				obs_output_get_service(context->output)));
-	}
+	context->start_timestamp = 0ULL;
+	safe_delete(context->frames_tracker);
+	context->frames_tracker =
+		new CaffeineFramesTracker(obs_service_get_settings(
+			obs_output_get_service(context->output)));
 	context->frames_tracker->caffeine_set_next_check_dropped_frames(0);
 
 #ifdef USE_SAMPLE_LOG
@@ -776,9 +784,9 @@ static void caffeine_stop(void *data, uint64_t ts)
 	obs_data_set_bool(obs_service_get_settings(
 				  obs_output_get_service(context->output)),
 			  "frames_dropped_above_threshold", false);
-	context->start_timestamp = 0;
-	context->frames_tracker = nullptr;
-	delete context->frames_tracker;
+
+	context->start_timestamp = 0ULL;
+	safe_delete(context->frames_tracker);
 }
 
 static void caffeine_destroy(void *data)
