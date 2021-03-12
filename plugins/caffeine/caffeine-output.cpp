@@ -773,7 +773,6 @@ static void caffeine_stop(void *data, uint64_t ts)
 	caff_endBroadcast(context->instance);
 	obs_output_end_data_capture(output);
 
-	delete context->frames_tracker;
 	obs_data_set_bool(obs_service_get_settings(
 				  obs_output_get_service(context->output)),
 			  "frames_dropped_above_threshold", false);
@@ -785,6 +784,8 @@ static void caffeine_destroy(void *data)
 	struct caffeine_output *context =
 		reinterpret_cast<struct caffeine_output *>(data);
 	caff_freeInstance(&context->instance);
+
+	delete context->frames_tracker;
 
 	// Free mutex and condvar.
 	pthread_mutex_destroy(&context->audio_lock);
