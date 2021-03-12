@@ -37,12 +37,12 @@ This causes a little bit of macro salsa, but we can remove it later */
 
 #define trace() log_debug("%s", __func__)
 
-#define safe_delete(x)			\
-	do {				\
-		if (nullptr != x) {	\
-			delete x;	\
-			x = nullptr;	\
-		}			\
+#define safe_delete(x)               \
+	do {                         \
+		if (nullptr != x) {  \
+			delete x;    \
+			x = nullptr; \
+		}                    \
 	} while (0)
 
 #define set_error(output, fmt, ...)                                 \
