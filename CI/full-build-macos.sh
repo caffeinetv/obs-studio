@@ -216,7 +216,7 @@ install_libcaffeine() {
     step "Download..."
     ${CURLCMD} --progress-bar -L -C - -O https://github.com/caffeinetv/libcaffeine/releases/download/v${1}/libcaffeine-v${1}-macos.7z 
     step "Unpack ..."
-    brew install p7zip
+    brew list p7zip || brew install p7zip
     7za x libcaffeine-v${1}-macos.7z 
 }
 
