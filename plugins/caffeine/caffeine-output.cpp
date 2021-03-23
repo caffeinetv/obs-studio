@@ -645,8 +645,10 @@ static void caffeine_raw_video(void *data, struct video_data *frame)
 			       total_bytes, width, height, timestampMicros);
 	}
 
-	context->frames_tracker->caffeine_add_frame(frame->timestamp,
-						    send_frame);
+	if (context->frames_tracker != nullptr) {
+		context->frames_tracker->caffeine_add_frame(frame->timestamp,
+							    send_frame);
+	}
 
 #ifdef USE_SAMPLE_LOG
 	uint64_t func_complete_timestamp_ns =
