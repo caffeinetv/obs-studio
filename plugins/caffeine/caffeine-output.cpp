@@ -66,7 +66,7 @@ This causes a little bit of macro salsa, but we can remove it later */
 #define CAFF_AUDIO_SAMPLERATE 48000ul
 #define NANOSECONDS 1000000000ull
 
-static int const enforced_height = 720;
+static int const enforced_height = 1080;
 static int const slow_connection_wait_ms = 66;
 static uint64_t const av_sync_tolerance_window_ms = 105UL;
 
